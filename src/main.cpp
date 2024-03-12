@@ -34,7 +34,7 @@ void emulate() {
     while (!reboot) {
         frame();
 #if !PICO_ON_DEVICE
-        if (mfb_update(SCREEN, 50) == -1)
+        if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
 #endif
     }

@@ -3,9 +3,9 @@
  */
 
 static inline void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y);
-void vdp_render_bg(int line, int priority);
-void vdp_render_sprite(int sprite_index, int line);
-void vdp_render_sprites(int line, int priority);
+static inline void vdp_render_bg(int line, int priority);
+static inline void vdp_render_sprite(int sprite_index, int line);
+static inline void vdp_render_sprites(int line, int priority);
 void vdp_render_line(int line);
 
 void vdp_set_buffers(unsigned char *screen_buffer);
@@ -17,7 +17,7 @@ enum ram_type {
     T_VSRAM
 };
 
-static inline void vdp_data_write(unsigned int value, enum ram_type type, int dma);
+static inline void vdp_data_write(unsigned int value, int type, int dma);
 static inline void vdp_data_port_write(unsigned int value);
 void vdp_set_reg(int reg, unsigned char value);
 unsigned int vdp_get_reg(int reg);
