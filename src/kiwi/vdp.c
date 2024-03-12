@@ -92,7 +92,6 @@ void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
  */
 static inline __always_inline
 void vdp_render_bg(int line, int priority) {
-static inline void vdp_render_bg(int line, int priority) {
     int h_cells = 32, v_cells = 32;
 
     switch (vdp_reg[16] & 3) {
