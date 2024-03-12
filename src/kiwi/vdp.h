@@ -18,7 +18,7 @@ enum ram_type {
     T_VSRAM
 };
 
-// static inline void vdp_data_write(unsigned int value, enum ram_type type, int dma);
+// static inline void vdp_data_write(unsigned int value, int type, int dma);
 // static inline void vdp_data_port_write(unsigned int value);
 // void vdp_set_reg(int reg, unsigned char value);
 // unsigned int vdp_get_reg(int reg);

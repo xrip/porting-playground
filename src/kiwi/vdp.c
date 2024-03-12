@@ -53,7 +53,7 @@ int dma_fill = 0;
 #define __always_inline __inline__
 #define __time_critical_func(f) f
 #define __fast_mul(a, b) (a*b)
-#define set_pixel(scr, x, y, index) scr[x+y*screen_width] = (CRAM[index] & 0xe00) >> 7 | (CRAM[index] & 0x0e0) << 3 | (CRAM[index] & 0x00e) << 12;
+#define set_pixel(scr, x, y, index) scr[(320-screen_width)/2+x+y*320] = (CRAM[index] & 0xe00) >> 7 | (CRAM[index] & 0x0e0) << 3 | (CRAM[index] & 0x00e) << 12;
 #endif
 #pragma GCC optimize("Ofast")
 /*
@@ -75,8 +75,11 @@ void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
         pattern_index += (cell_x & 7) >> 1;
 
     unsigned char color_index = pattern[pattern_index];
-    if ((cell_x & 1) ^ ((cell >> 11) & 1)) color_index &= 0xf;
-    else color_index >>= 4;
+
+    if ((cell_x & 1) ^ ((cell >> 11) & 1))
+        color_index &= 0xf;
+    else
+        color_index >>= 4;
 
     if (color_index) {
         color_index += (cell & 0x6000) >> 9;
@@ -89,6 +92,7 @@ void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
  */
 static inline __always_inline
 void vdp_render_bg(int line, int priority) {
+static inline void vdp_render_bg(int line, int priority) {
     int h_cells = 32, v_cells = 32;
 
     switch (vdp_reg[16] & 3) {
@@ -99,6 +103,7 @@ void vdp_render_bg(int line, int priority) {
         case 3: h_cells = 128;
             break;
     }
+
     switch ((vdp_reg[16] >> 4) & 3) {
         case 0: v_cells = 32;
             break;
@@ -122,11 +127,7 @@ void vdp_render_bg(int line, int priority) {
             break;
     }
 
-    unsigned short vscroll_mask;
-    if (vdp_reg[11] & 4)
-        vscroll_mask = 0xfff0;
-    else
-        vscroll_mask = 0x0000;
+    const unsigned short vscroll_mask = vdp_reg[11] & 4 ? 0xfff0 : 0x0000;
 
     for (int scroll_i = 0; scroll_i < 2; scroll_i++) {
         unsigned char* scroll;
@@ -169,7 +170,6 @@ void vdp_render_sprite(int sprite_index, int line) {
     int y = (128 - y_pos + line) & 7;
     int cell_y = (128 - y_pos + line) >> 3;
 
-#pragma GCC unroll(320)
     for (int cell_x = 0; cell_x < h_size; cell_x++) {
 
         for (int x = 0; x < 8; x++) {
@@ -203,6 +203,7 @@ void vdp_render_sprites(int line, int priority) {
     int sprite_queue[80];
     int i = 0;
     int cur_sprite = 0;
+
     while (1) {
         unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + __fast_mul(cur_sprite, 8)];
         unsigned short y_pos = (sprite[0] << 8) | sprite[1];
@@ -236,9 +237,9 @@ void vdp_render_sprites(int line, int priority) {
 void __time_critical_func(vdp_render_line)(int line) {
     /* Fill the screen with the backdrop color set in register 7 */
 #if PICO_ON_DEVICE
-    memset(&screen[line*screen_width], vdp_reg[7]&0x3f, screen_width );
+    memset(&screen[line*screen_width], vdp_reg[7]&0x3f, 320 );
 #else
-    for (int i = 0; i < screen_width; i++) {
+    for (int i = 0; i < 320; i++) {
         set_pixel(screen, i, line, vdp_reg[7]&0x3f);
     }
 #endif
@@ -265,23 +266,21 @@ void vdp_debug_status(char* s) {
 }
 
 static inline __attribute__((always_inline))
-void vdp_data_write(unsigned int value, enum ram_type type, int dma) {
-    if (type == T_VRAM) /* VRAM write */
-    {
+void vdp_data_write(unsigned int value, int type, int dma) {
+    switch (type) {
+        case 0: case 1: /* VRAM write */
         VRAM[control_address] = (value >> 8) & 0xff;
         VRAM[control_address + 1] = (value) & 0xff;
-    }
-    else if (type == T_CRAM) /* CRAM write */
-    {
+        break;
+        case 2: case 3: /* CRAM write */
         CRAM[(control_address & 0x7f) >> 1] = value;
-
 #if PICO_ON_DEVICE
         graphics_set_palette((control_address & 0x7f) >> 1, RGB888(CRAM_R(value), CRAM_G(value), CRAM_B(value)));
 #endif
-    }
-    else if (type == T_VSRAM) /* VSRAM write */
-    {
+        break;
+        case 4: case 5: /* VSRAM write */
         VSRAM[(control_address & 0x7f) >> 1] = value;
+        break;
     }
 }
 
@@ -289,21 +288,9 @@ static inline __attribute__((always_inline))
 void vdp_data_port_write(unsigned int value) {
     if (control_code & 1) /* check if write is set */
     {
-        enum ram_type type;
-        if ((control_code & 0xe) == 0) /* VRAM write */
-        {
-            type = T_VRAM;
-        }
-        else if ((control_code & 0xe) == 2) /* CRAM write */
-        {
-            type = T_CRAM;
-        }
-        else if ((control_code & 0xe) == 4) /* VSRAM write */
-        {
-            type = T_VSRAM;
-        }
-        vdp_data_write(value, type, 0);
+        vdp_data_write(value, control_code & 0xe, 0);
     }
+
     control_address = (control_address + vdp_reg[15]) & 0xffff;
     control_pending = 0;
 
@@ -313,8 +300,7 @@ void vdp_data_port_write(unsigned int value) {
         dma_length = vdp_reg[19] | (vdp_reg[20] << 8);
         while (dma_length--) {
             VRAM[control_address] = value >> 8;
-            control_address += vdp_reg[15];
-            control_address &= 0xffff;
+            control_address = (control_address + vdp_reg[15]) & 0xffff;
         }
     }
 }
@@ -367,21 +353,11 @@ void vdp_control_write(unsigned int value) {
                 dma_source = (vdp_reg[21] << 1) | (vdp_reg[22] << 9) | (vdp_reg[23] << 17);
 
                 unsigned int word;
-                enum ram_type type;
-                if ((control_code & 0x7) == 1) {
-                    type = T_VRAM;
-                }
-                else if ((control_code & 0x7) == 3) {
-                    type = T_CRAM;
-                }
-                else if ((control_code & 0x7) == 5) {
-                    type = T_VSRAM;
-                }
 
                 while (dma_length--) {
                     word = m68k_read_memory_16(dma_source);
                     dma_source += 2;
-                    vdp_data_write(word, type, 1);
+                    vdp_data_write(word, control_code & 0x7, 1);
                     control_address += vdp_reg[15];
                     control_address &= 0xffff;
                 }
