@@ -1,11 +1,16 @@
+#pragma GCC optimize("Ofast")
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
-
 #include "m68k/m68k.h"
 #include "vdp.h"
+
+#if PICO_ON_DEVICE
+#include <pico/platform.h>
+#endif
+
 #include "stdint.h"
 
 /*
@@ -17,8 +22,12 @@ uint16_t CRAM[0x40];
 uint16_t VSRAM[0x40];
 uint8_t vdp_reg[0x20];
 
-
-uint16_t *screen, *scaled_screen;
+#if PICO_ON_DEVICE
+uint8_t *screen;
+#include <graphics.h>
+#else
+uint16_t *screen;
+#endif
 
 int control_code = 0;
 unsigned int control_address = 0;
@@ -38,14 +47,21 @@ int dma_fill = 0;
 #define CRAM_G(c)          COLOR_3B_TO_8B(BITS((c), 5, 3))
 #define CRAM_B(c)          COLOR_3B_TO_8B(BITS((c), 9, 3))
 /* Set a pixel on the screen using the Color RAM */
+#if PICO_ON_DEVICE
+#define set_pixel(scr, x, y, index) scr[x+y*screen_width] = index % 64;
+#else
+#define __always_inline __inline__
+#define __time_critical_func(f) f
+#define __fast_mul(a, b) (a*b)
 #define set_pixel(scr, x, y, index) scr[x+y*screen_width] = (CRAM[index] & 0xe00) >> 7 | (CRAM[index] & 0x0e0) << 3 | (CRAM[index] & 0x00e) << 12;
-
-
+#endif
+#pragma GCC optimize("Ofast")
 /*
  * Draw a single pixel of a cell 
  */
-static inline void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
-    unsigned char* pattern = &VRAM[0x20 * (cell & 0x7ff)];
+static inline __always_inline
+void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
+    unsigned char* pattern = &VRAM[__fast_mul(cell & 0x7ff, 0x20)];
 
     int pattern_index = 0;
     if (cell & 0x1000) /* v flip */
@@ -71,6 +87,7 @@ static inline void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, in
 /*
  * Render the scroll layers (plane A and B)
  */
+static inline __always_inline
 void vdp_render_bg(int line, int priority) {
     int h_cells = 32, v_cells = 32;
 
@@ -111,7 +128,6 @@ void vdp_render_bg(int line, int priority) {
     else
         vscroll_mask = 0x0000;
 
-#pragma GCC unroll (64)
     for (int scroll_i = 0; scroll_i < 2; scroll_i++) {
         unsigned char* scroll;
         if (scroll_i == 0)
@@ -119,18 +135,17 @@ void vdp_render_bg(int line, int priority) {
         else
             scroll = &VRAM[vdp_reg[2] << 10];
 
-        short hscroll = (hscroll_table[((line & hscroll_mask)) * 4 + (scroll_i ^ 1) * 2] << 8)
-                        | hscroll_table[((line & hscroll_mask)) * 4 + (scroll_i ^ 1) * 2 + 1];
+        short hscroll = (hscroll_table[__fast_mul(line & hscroll_mask, 4) + __fast_mul(scroll_i ^ 1, 2)] << 8)
+                        | hscroll_table[__fast_mul(line & hscroll_mask, 4) + __fast_mul(scroll_i ^ 1, 2) + 1];
 
-#pragma GCC unroll (64)
         for (int column = 0; column < screen_width; column++) {
             short vscroll = VSRAM[(column & vscroll_mask) / 4 + (scroll_i ^ 1)] & 0x3ff;
-            int e_line = (line + vscroll) & (v_cells * 8 - 1);
+            int e_line = (line + vscroll) & (__fast_mul(v_cells, 8) - 1);
             int cell_line = e_line >> 3;
-            int e_column = (column - hscroll) & (h_cells * 8 - 1);
+            int e_column = (column - hscroll) & (__fast_mul(h_cells, 8) - 1);
             int cell_column = e_column >> 3;
-            unsigned int cell = (scroll[(cell_line * h_cells + cell_column) * 2] << 8)
-                                | scroll[(cell_line * h_cells + cell_column) * 2 + 1];
+            unsigned int cell = (scroll[__fast_mul(cell_line * h_cells + cell_column, 2)] << 8)
+                                | scroll[__fast_mul(cell_line * h_cells + cell_column, 2) + 1];
 
             if (((cell & 0x8000) && priority) || ((cell & 0x8000) == 0 && priority == 0))
                 draw_cell_pixel(cell, e_column, e_line, column, line);
@@ -141,8 +156,9 @@ void vdp_render_bg(int line, int priority) {
 /*
  * Render part of a sprite on a given line.
  */
+static inline __always_inline
 void vdp_render_sprite(int sprite_index, int line) {
-    unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + sprite_index * 8];
+    unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + __fast_mul(sprite_index, 8)];
 
     unsigned short y_pos = ((sprite[0] << 8) | sprite[1]) & 0x3ff;
     int h_size = ((sprite[2] >> 2) & 0x3) + 1;
@@ -153,11 +169,12 @@ void vdp_render_sprite(int sprite_index, int line) {
     int y = (128 - y_pos + line) & 7;
     int cell_y = (128 - y_pos + line) >> 3;
 
-#pragma GCC unroll (64)
+#pragma GCC unroll(320)
     for (int cell_x = 0; cell_x < h_size; cell_x++) {
+
         for (int x = 0; x < 8; x++) {
             int e_x, e_cell;
-            e_x = cell_x * 8 + x + x_pos - 128;
+            e_x = __fast_mul(cell_x, 8) + x + x_pos - 128;
             e_cell = cell;
 
             if (cell & 0x1000)
@@ -179,6 +196,7 @@ void vdp_render_sprite(int sprite_index, int line) {
 /*
  * Render the sprite layer.
  */
+static inline __always_inline
 void vdp_render_sprites(int line, int priority) {
     unsigned char* sprite_table = &VRAM[vdp_reg[5] << 9];
 
@@ -186,20 +204,20 @@ void vdp_render_sprites(int line, int priority) {
     int i = 0;
     int cur_sprite = 0;
     while (1) {
-        unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + cur_sprite * 8];
+        unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + __fast_mul(cur_sprite, 8)];
         unsigned short y_pos = (sprite[0] << 8) | sprite[1];
         int v_size = (sprite[2] & 0x3) + 1;
         unsigned int cell = (sprite[4] << 8) | sprite[5];
 
         int y_min = y_pos - 128;
-        int y_max = (v_size - 1) * 8 + 7 + y_min;
+        int y_max = __fast_mul(v_size - 1, 8) + 7 + y_min;
 
         if (line >= y_min && line <= y_max) {
             if ((cell >> 15) == priority)
                 sprite_queue[i++] = cur_sprite;
         }
 
-        cur_sprite = sprite_table[cur_sprite * 8 + 3];
+        cur_sprite = sprite_table[__fast_mul(cur_sprite, 8) + 3];
         if (!cur_sprite)
             break;
 
@@ -214,12 +232,16 @@ void vdp_render_sprites(int line, int priority) {
 /*
  * Render a single line.
  */
-void vdp_render_line(int line) {
+// static inline __attribute__((always_inline))
+void __time_critical_func(vdp_render_line)(int line) {
     /* Fill the screen with the backdrop color set in register 7 */
+#if PICO_ON_DEVICE
+    memset(&screen[line*screen_width], vdp_reg[7]&0x3f, screen_width );
+#else
     for (int i = 0; i < screen_width; i++) {
         set_pixel(screen, i, line, vdp_reg[7]&0x3f);
     }
-
+#endif
 
     vdp_render_bg(line, 0);
     vdp_render_sprites(line, 0);
@@ -227,23 +249,23 @@ void vdp_render_line(int line) {
     vdp_render_sprites(line, 1);
 }
 
-void vdp_set_buffers(unsigned char* screen_buffer) {
+void vdp_set_buffers(void* screen_buffer) {
     m68k_pulse_reset();
     screen = screen_buffer;
 }
 
 void vdp_debug_status(char* s) {
-    int i = 0;
     s[0] = 0;
     s += sprintf(s, "VDP: ");
     s += sprintf(s, "%04x ", vdp_status);
-    for (i = 0; i < 0x20; i++) {
+    for (int i = 0; i < 0x20; i++) {
         if (!(i % 16)) s += sprintf(s, "\n");
         s += sprintf(s, "%02x ", vdp_reg[i]);
     }
 }
 
-static inline void vdp_data_write(unsigned int value, enum ram_type type, int dma) {
+static inline __attribute__((always_inline))
+void vdp_data_write(unsigned int value, enum ram_type type, int dma) {
     if (type == T_VRAM) /* VRAM write */
     {
         VRAM[control_address] = (value >> 8) & 0xff;
@@ -252,6 +274,10 @@ static inline void vdp_data_write(unsigned int value, enum ram_type type, int dm
     else if (type == T_CRAM) /* CRAM write */
     {
         CRAM[(control_address & 0x7f) >> 1] = value;
+
+#if PICO_ON_DEVICE
+        graphics_set_palette((control_address & 0x7f) >> 1, RGB888(CRAM_R(value), CRAM_G(value), CRAM_B(value)));
+#endif
     }
     else if (type == T_VSRAM) /* VSRAM write */
     {
@@ -259,7 +285,8 @@ static inline void vdp_data_write(unsigned int value, enum ram_type type, int dm
     }
 }
 
-static inline  void vdp_data_port_write(unsigned int value) {
+static inline __attribute__((always_inline))
+void vdp_data_port_write(unsigned int value) {
     if (control_code & 1) /* check if write is set */
     {
         enum ram_type type;
@@ -292,6 +319,7 @@ static inline  void vdp_data_port_write(unsigned int value) {
     }
 }
 
+static inline __attribute__((always_inline))
 void vdp_set_reg(int reg, unsigned char value) {
     if (vdp_reg[1] & 4 || reg <= 10)
         vdp_reg[reg] = value;
@@ -299,10 +327,12 @@ void vdp_set_reg(int reg, unsigned char value) {
     control_code = 0;
 }
 
+static inline __attribute__((always_inline))
 unsigned int vdp_get_reg(int reg) {
     return vdp_reg[reg];
 }
 
+static inline __attribute__((always_inline))
 void vdp_control_write(unsigned int value) {
     if (!control_pending) {
         if ((value & 0xc000) == 0x8000) {
@@ -417,11 +447,13 @@ unsigned int vdp_read(unsigned int address) {
     return 0;
 }
 
+static inline __attribute__((always_inline))
 unsigned int vdp_get_status() {
     return vdp_status;
 }
 
-static inline uint16_t vdp_get_cram(int index) {
+static inline __attribute__((always_inline))
+uint16_t vdp_get_cram(int index) {
     return CRAM[index & 0x3f];
 }
 

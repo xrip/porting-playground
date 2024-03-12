@@ -1,7 +1,7 @@
 /* ======================================================================== */
 /* ========================= LICENSING & COPYRIGHT ======================== */
 /* ======================================================================== */
-
+#pragma GCC optimize("Ofast")
 #if 0
 static const char* copyright_notice =
 "MUSASHI\n"
@@ -34,6 +34,11 @@ static const char* copyright_notice =
 
 #include "m68kops.h"
 #include "m68kcpu.h"
+#if PICO_ON_DEVICE
+#include <pico/platform.h>
+#else
+#define __fast_mul(a, b) (a*b)
+#endif
 
 /* ======================================================================== */
 /* ================================= DATA ================================= */
@@ -672,7 +677,7 @@ int m68k_execute(int num_cycles)
 		USE_CYCLES(CPU_INT_CYCLES);
 		CPU_INT_CYCLES = 0;
 
-        cycle_counter += (m68ki_initial_cycles - GET_CYCLES())*7;
+        cycle_counter += m68ki_initial_cycles - (__fast_mul(GET_CYCLES(), 8) - GET_CYCLES());
 
 		/* return how many clocks we used */
 		return m68ki_initial_cycles - GET_CYCLES();
@@ -737,7 +742,9 @@ void m68k_pulse_reset(void)
 	/* The first call to this function initializes the opcode handler jump table */
 	if(!emulation_initialized)
 	{
-		// m68ki_build_opcode_table();
+#if !PICO_ON_DEVICE
+		m68ki_build_opcode_table();
+#endif
 		m68k_set_int_ack_callback(NULL);
 		m68k_set_bkpt_ack_callback(NULL);
 		m68k_set_reset_instr_callback(NULL);

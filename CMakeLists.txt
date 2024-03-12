@@ -22,15 +22,15 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-#set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -funroll-loops  -ffast-math  -O2")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops  -ffast-math  -O2")
 
 if (PICO_PLATFORM STREQUAL "host")
 else()
-    pico_sdk_init()
-    message(STATUS "====> RP2040 BUILD")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}  -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
 
-    add_subdirectory(drivers/audio)
+    pico_sdk_init()
+
+#    add_subdirectory(drivers/audio)
 
     add_subdirectory(drivers/ps2kbd)
     add_subdirectory(drivers/nespad)
@@ -106,7 +106,7 @@ else()
 
     target_link_libraries(${PROJECT_NAME} PRIVATE
             graphics
-            audio
+#            audio
 
             nespad
             sdcard
@@ -116,13 +116,6 @@ else()
             pico_runtime
             pico_stdlib
             pico_multicore
-            hardware_dma
-            hardware_pio
-            hardware_i2c
-            hardware_interp
-            hardware_timer
-            hardware_clocks
-            hardware_pwm
             hardware_flash
 
             tinyusb_host

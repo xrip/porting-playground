@@ -27,6 +27,7 @@
 #define M68KCPU__HEADER
 
 #include "m68k.h"
+
 #include <limits.h>
 
 #if M68K_EMULATE_ADDRESS_ERROR
@@ -63,8 +64,9 @@
 
 /* signed and unsigned int must be at least 32 bits wide */
 #define sint   signed   int
+#if !PICO_ON_DEVICE
 #define uint   unsigned int
-
+#endif
 
 #if M68K_USE_64_BIT
 #define sint64 signed   long long

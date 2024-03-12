@@ -13,9 +13,9 @@
  * Megadrive memory map as well as main execution loop.
  */
 
-extern uint8_t ROM[0x400000];
-uint8_t RAM[0x10000];
-uint8_t ZRAM[0x2000];
+uint8_t * rom;
+uint8_t RAM[0x10000] = { 0 };
+uint8_t ZRAM[0x2000] = { 0 };
 
 const int MCLOCK_NTSC = 53693175;
 const int MCYCLES_PER_LINE = 3420;
@@ -24,23 +24,25 @@ int lines_per_frame = 262; /* NTSC: 262, PAL: 313 */
 
 int cycle_counter = 0;
 
-void set_rom(unsigned char *buffer, size_t size)
+void set_rom(unsigned char *buffer)
 {
-    memset(ROM, 0, 0x400000);
+    // memset(ROM, 0, 0x400000);
     memset(RAM, 0, 0x10000);
     memset(ZRAM, 0, 0x2000);
 
     // memcpy(ROM, buffer, size);
+    rom = buffer;
 }
 
-static inline unsigned int read_memory(unsigned int address)
+static inline __attribute__((always_inline))
+unsigned int read_memory(unsigned int address)
 {
     unsigned int range = (address & 0xff0000) >> 16;
 
     if (range <= 0x3f)
     {
         /* ROM */
-        return ROM[address];
+        return rom[address];
     }
     else if (range == 0xa0)
     {
@@ -79,14 +81,15 @@ static inline unsigned int read_memory(unsigned int address)
     return 0;
 }
 
-static inline void write_memory(unsigned int address, unsigned int value)
+static inline __attribute__((always_inline))
+void write_memory(unsigned int address, unsigned int value)
 {
     unsigned int range = (address & 0xff0000) >> 16;
 
     if (range <= 0x3f)
     {
         /* ROM */
-        ROM[address] = value;
+        rom[address] = value;
         return;
     }
     else if (range == 0xa0)
@@ -187,11 +190,12 @@ void m68k_write_memory_32(unsigned int address, unsigned int value)
  * The Megadrive frame, called every 1/60th second 
  * (or 1/50th in PAL mode)
  */
+extern unsigned char vdp_reg[0x20];
+extern unsigned int vdp_status;
+extern int screen_width, screen_height;
 void frame()
 {
-    extern unsigned char vdp_reg[0x20];
-    extern unsigned int vdp_status;
-    extern int screen_width, screen_height;
+
     int hint_counter = vdp_reg[10];
     int line;
 
