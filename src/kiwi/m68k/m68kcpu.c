@@ -1,7 +1,7 @@
 /* ======================================================================== */
 /* ========================= LICENSING & COPYRIGHT ======================== */
 /* ======================================================================== */
-#pragma GCC optimize("Ofast")
+
 #if 0
 static const char* copyright_notice =
 "MUSASHI\n"
@@ -557,7 +557,7 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 			CPU_TYPE         = CPU_TYPE_000;
 			CPU_ADDRESS_MASK = 0x00ffffff;
 			CPU_SR_MASK      = 0xa71f; /* T1 -- S  -- -- I2 I1 I0 -- -- -- X  N  Z  V  C  */
-			CYC_INSTRUCTION  = m68ki_cycles[0];
+			CYC_INSTRUCTION  = m68ki_cycles;
 			CYC_EXCEPTION    = m68ki_exception_cycle_table[0];
 			CYC_BCC_NOTAKE_B = -2;
 			CYC_BCC_NOTAKE_W = 2;
@@ -573,7 +573,7 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 			CPU_TYPE         = CPU_TYPE_010;
 			CPU_ADDRESS_MASK = 0x00ffffff;
 			CPU_SR_MASK      = 0xa71f; /* T1 -- S  -- -- I2 I1 I0 -- -- -- X  N  Z  V  C  */
-			CYC_INSTRUCTION  = m68ki_cycles[1];
+			CYC_INSTRUCTION  = m68ki_cycles;
 			CYC_EXCEPTION    = m68ki_exception_cycle_table[1];
 			CYC_BCC_NOTAKE_B = -4;
 			CYC_BCC_NOTAKE_W = 0;
@@ -589,7 +589,7 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 			CPU_TYPE         = CPU_TYPE_EC020;
 			CPU_ADDRESS_MASK = 0x00ffffff;
 			CPU_SR_MASK      = 0xf71f; /* T1 T0 S  M  -- I2 I1 I0 -- -- -- X  N  Z  V  C  */
-			CYC_INSTRUCTION  = m68ki_cycles[2];
+			CYC_INSTRUCTION  = m68ki_cycles;
 			CYC_EXCEPTION    = m68ki_exception_cycle_table[2];
 			CYC_BCC_NOTAKE_B = -2;
 			CYC_BCC_NOTAKE_W = 0;
@@ -605,7 +605,7 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 			CPU_TYPE         = CPU_TYPE_020;
 			CPU_ADDRESS_MASK = 0xffffffff;
 			CPU_SR_MASK      = 0xf71f; /* T1 T0 S  M  -- I2 I1 I0 -- -- -- X  N  Z  V  C  */
-			CYC_INSTRUCTION  = m68ki_cycles[2];
+			CYC_INSTRUCTION  = m68ki_cycles;
 			CYC_EXCEPTION    = m68ki_exception_cycle_table[2];
 			CYC_BCC_NOTAKE_B = -2;
 			CYC_BCC_NOTAKE_W = 0;

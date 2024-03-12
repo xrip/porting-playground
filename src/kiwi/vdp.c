@@ -1,4 +1,9 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <assert.h>
+#include <ctype.h>
+
 #include "m68k/m68k.h"
 #include "vdp.h"
 #include "stdint.h"

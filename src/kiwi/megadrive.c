@@ -1,9 +1,13 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
+#include <ctype.h>
 #include "m68k/m68k.h"
 #include "z80.h"
 #include "VDP.h"
 #include "input.h"
+
 #pragma GCC optimize("Ofast")
 /*
  * Megadrive memory map as well as main execution loop.

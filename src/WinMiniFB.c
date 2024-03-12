@@ -1,3 +1,4 @@
+#if !PICO_ON_DEVICE
 #include "MiniFB.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -161,3 +162,4 @@ void mfb_close() {
 char * mfb_keystatus() {
     return key_status;
 }
+#endif
