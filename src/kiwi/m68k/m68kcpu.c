@@ -737,7 +737,7 @@ void m68k_pulse_reset(void)
 	/* The first call to this function initializes the opcode handler jump table */
 	if(!emulation_initialized)
 	{
-		m68ki_build_opcode_table();
+		// m68ki_build_opcode_table();
 		m68k_set_int_ack_callback(NULL);
 		m68k_set_bkpt_ack_callback(NULL);
 		m68k_set_reset_instr_callback(NULL);
