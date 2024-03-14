@@ -7,14 +7,8 @@
 #include <stdio.h>
 
 #define NUM_CPU_TYPES 1
-#if PICO_ON_DEVICE
-#include "pico.h"
 #include "m68ki_instruction_jump_table.h"
 #include "m68ki_cycles.h"
-#else
-void (*m68ki_instruction_jump_table[0x10000])(void); /* opcode handler jump table */
-unsigned char m68ki_cycles[0x10000]; /* Cycles used by CPU type */
-#endif
 
 
 /* This is used to generate the opcode handler jump table */
@@ -1998,7 +1992,7 @@ static opcode_handler_struct m68k_opcode_handler_table[] =
 
 /* Build the opcode handler jump table */
 void m68ki_build_opcode_table(void) {
-#if !PICO_ON_DEVICE
+#if 0
     opcode_handler_struct* ostruct;
     int instr;
     int i;

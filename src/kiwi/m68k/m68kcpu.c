@@ -34,6 +34,9 @@ static const char* copyright_notice =
 
 #include "m68kops.h"
 #include "m68kcpu.h"
+
+#include "m68ki_cycles.h"
+#include "m68ki_instruction_jump_table.h"
 #if PICO_ON_DEVICE
 #include <pico/platform.h>
 #else
@@ -630,7 +633,7 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 int m68k_execute(int num_cycles)
 {
     extern int cycle_counter;
-    num_cycles /= 7; /* num_cycles is given in M cycles */
+    // num_cycles /= 7; /* num_cycles is given in M cycles */
 
 	/* Make sure we're not stopped */
 	if(!CPU_STOPPED)
@@ -677,7 +680,7 @@ int m68k_execute(int num_cycles)
 		USE_CYCLES(CPU_INT_CYCLES);
 		CPU_INT_CYCLES = 0;
 
-        cycle_counter += m68ki_initial_cycles - (__fast_mul(GET_CYCLES(), 8) - GET_CYCLES());
+        cycle_counter += m68ki_initial_cycles - GET_CYCLES();
 
 		/* return how many clocks we used */
 		return m68ki_initial_cycles - GET_CYCLES();

@@ -165,7 +165,7 @@ extern int screen_width, screen_height;
 
 void frame() {
     int hint_counter = vdp_reg[10];
-    int line;
+    int scanline;
 
     cycle_counter = 0;
 
@@ -174,9 +174,8 @@ void frame() {
 
     vdp_clear_vblank();
 
-    for (line = 0; line < screen_height; line++) {
-        m68k_execute(2560 + 120);
-
+    for (scanline = 0; scanline < 262; scanline++) {
+        m68k_execute(3420);
 
         if (--hint_counter < 0) {
             hint_counter = vdp_reg[10];
@@ -186,31 +185,32 @@ void frame() {
             }
         }
 
-        vdp_set_hblank();
-        m68k_execute(64 + 313 + 259); /* HBlank */
-        vdp_clear_hblank();
+        // vdp_set_hblank();
+        // m68k_execute(64 + 313 + 259); /* HBlank */
+        // vdp_clear_hblank();
 
-        m68k_execute(104);
+        // m68k_execute(104);
 
-        vdp_render_line(line); /* render line */
+        if (scanline < screen_height)
+            vdp_render_line(scanline); /* render line */
     }
 
-    vdp_set_vblank();
+    // vdp_set_vblank();
 
-    m68k_execute(588);
+    // m68k_execute(588);
 
-    vdp_status |= 0x80;
+    // vdp_status |= 0x80;
 
-    m68k_execute(200);
+    // m68k_execute(200);
 
     if (vdp_reg[1] & 0x20) {
         m68k_set_irq(6); /* HInt */
     }
 
-    m68k_execute(3420 - 788);
-    line++;
+    // m68k_execute(3420 - 788);
+    // line++;
 
-    for (; line < lines_per_frame; line++) {
-        m68k_execute(3420); /**/
-    }
+    // for (; line < lines_per_frame; line++) {
+        // m68k_execute(3420); /**/
+    // }
 }
