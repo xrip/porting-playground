@@ -471,7 +471,7 @@ void filebrowser(const char pathname[256], const char executables[11]) {
     }
 }
 #endif
-
+extern int screen_width, screen_height;
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
@@ -479,9 +479,7 @@ int main(int argc, char** argv) {
     if (!mfb_open("sega", 320, 224, 3))
         return 0;
 #else
-    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
-    sleep_ms(10);
-    set_sys_clock_khz(272 * KHZ, true);
+    overclock();
 
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
@@ -509,7 +507,10 @@ int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
-#endif
+#else
+        graphics_set_buffer((uint8_t *)SCREEN, screen_width, screen_height);
+        graphics_set_offset(screen_width != 320 ? 32 : 0, screen_height != 240 ? 8 : 0);
+        #endif
     }
     reboot = false;
 }

@@ -52,7 +52,8 @@ int dma_fill = 0;
 #else
 #define __always_inline __inline__
 #define __time_critical_func(f) f
-#define __fast_mul(a, b) (a*b)
+#define __fast_mul(a, b) ((a)*(b))
+#define __mul_instruction(a, b) ((a)*(b))
 #define set_pixel(scr, x, y, index) scr[(320-screen_width)/2+x+y*320] = (CRAM[index] & 0xe00) >> 7 | (CRAM[index] & 0x0e0) << 3 | (CRAM[index] & 0x00e) << 12;
 #endif
 #pragma GCC optimize("Ofast")
@@ -63,7 +64,7 @@ static inline __always_inline
 void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
     unsigned char* pattern = &VRAM[__fast_mul(cell & 0x7ff, 0x20)];
 
-    int pattern_index = 0;
+    int pattern_index;
     if (cell & 0x1000) /* v flip */
         pattern_index = (7 - (cell_y & 7)) << 2;
     else
@@ -76,7 +77,7 @@ void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
 
     unsigned char color_index = pattern[pattern_index];
 
-    if ((cell_x & 1) ^ ((cell >> 11) & 1))
+    if ((cell_x & 1) ^ (cell >> 11) & 1)
         color_index &= 0xf;
     else
         color_index >>= 4;
@@ -135,17 +136,17 @@ void vdp_render_bg(int line, int priority) {
         else
             scroll = &VRAM[vdp_reg[2] << 10];
 
-        short hscroll = (hscroll_table[__fast_mul(line & hscroll_mask, 4) + __fast_mul(scroll_i ^ 1, 2)] << 8)
+        short hscroll = hscroll_table[__fast_mul(line & hscroll_mask, 4) + __fast_mul(scroll_i ^ 1, 2)] << 8
                         | hscroll_table[__fast_mul(line & hscroll_mask, 4) + __fast_mul(scroll_i ^ 1, 2) + 1];
 
         for (int column = 0; column < screen_width; column++) {
             short vscroll = VSRAM[(column & vscroll_mask) / 4 + (scroll_i ^ 1)] & 0x3ff;
-            int e_line = (line + vscroll) & (__fast_mul(v_cells, 8) - 1);
+            int e_line = line + vscroll & __fast_mul(v_cells, 8) - 1;
             int cell_line = e_line >> 3;
-            int e_column = (column - hscroll) & (__fast_mul(h_cells, 8) - 1);
+            int e_column = column - hscroll & __fast_mul(h_cells, 8) - 1;
             int cell_column = e_column >> 3;
-            unsigned int cell = (scroll[__fast_mul(cell_line * h_cells + cell_column, 2)] << 8)
-                                | scroll[__fast_mul(cell_line * h_cells + cell_column, 2) + 1];
+            unsigned int cell = scroll[__fast_mul(__mul_instruction(cell_line, h_cells) + cell_column, 2)] << 8
+                                | scroll[__fast_mul(__mul_instruction(cell_line, h_cells) + cell_column, 2) + 1];
 
             if (((cell & 0x8000) && priority) || ((cell & 0x8000) == 0 && priority == 0))
                 draw_cell_pixel(cell, e_column, e_line, column, line);
@@ -156,21 +157,19 @@ void vdp_render_bg(int line, int priority) {
 /*
  * Render part of a sprite on a given line.
  */
-static inline __always_inline
-void vdp_render_sprite(int sprite_index, int line) {
+static inline void vdp_render_sprite(int sprite_index, int line) {
     unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + __fast_mul(sprite_index, 8)];
 
-    unsigned short y_pos = ((sprite[0] << 8) | sprite[1]) & 0x3ff;
-    int h_size = ((sprite[2] >> 2) & 0x3) + 1;
+    unsigned short y_pos = (sprite[0] << 8 | sprite[1]) & 0x3ff;
+    int h_size = (sprite[2] >> 2 & 0x3) + 1;
     int v_size = (sprite[2] & 0x3) + 1;
-    unsigned int cell = (sprite[4] << 8) | sprite[5];
-    unsigned short x_pos = ((sprite[6] << 8) | sprite[7]) & 0x3ff;
+    unsigned int cell = sprite[4] << 8 | sprite[5];
+    unsigned short x_pos = (sprite[6] << 8 | sprite[7]) & 0x3ff;
 
     int y = (128 - y_pos + line) & 7;
     int cell_y = (128 - y_pos + line) >> 3;
 
     for (int cell_x = 0; cell_x < h_size; cell_x++) {
-
         for (int x = 0; x < 8; x++) {
             int e_x, e_cell;
             e_x = __fast_mul(cell_x, 8) + x + x_pos - 128;
@@ -182,9 +181,9 @@ void vdp_render_sprite(int sprite_index, int line) {
                 e_cell += cell_y;
 
             if (cell & 0x800)
-                e_cell += (h_size - cell_x - 1) * v_size;
+                e_cell += __mul_instruction(h_size - cell_x - 1, v_size);
             else
-                e_cell += cell_x * v_size;
+                e_cell += __mul_instruction(cell_x, v_size);
             if (e_x >= 0 && e_x < screen_width) {
                 draw_cell_pixel(e_cell, x, y, e_x, line);
             }
@@ -195,7 +194,6 @@ void vdp_render_sprite(int sprite_index, int line) {
 /*
  * Render the sprite layer.
  */
-static inline __always_inline
 void vdp_render_sprites(int line, int priority) {
     unsigned char* sprite_table = &VRAM[vdp_reg[5] << 9];
 
