@@ -4,17 +4,22 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
+#include <bits/locale_classes.h>
 
-
+#include <windows.h>
 extern "C" {
-// #include "pce-go/pce-go.h"
-#include <pce-go/pce.h>
+#include <gw/gw_sys/gw_system.h>
+#include <gw/gw_sys/gw_romloader.h>
 }
+
+unsigned char *ROM_DATA;
+unsigned int ROM_DATA_LENGTH;
+
 size_t filesize = 0;
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
-uint8_t SCREEN[XBUF_HEIGHT][XBUF_WIDTH];
+uint16_t SCREEN[GW_SCREEN_HEIGHT][GW_SCREEN_WIDTH];
 
 #else
 #include <hardware/clocks.h>
@@ -539,41 +544,85 @@ void osd_vsync(void)
 
 }
 
+static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
 
-
-void osd_input_read(uint8_t joypads[8])
+/* callback to get buttons state */
+unsigned int gw_get_buttons()
 {
+    uint32_t hw_buttons = 0;
 
-    uint32_t buttons = 0;
-/*
-    'X', // A
-    'Z', // B
-    0x08, // Select
-    0x0D, // Start
-    0x26, // Dpad Up
-    0x28, // Dpad Down
-    0x25, // Dpad Left
-    0x27, // Dpad Right
-*/
-#if !PICO_ON_DEVICE
-    uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-    if (key_status[0x25])   buttons |= JOY_LEFT;
-    if (key_status[0x27])  buttons |= JOY_RIGHT;
-    if (key_status[0x26])     buttons |= JOY_UP;
-    if (key_status[0x28])   buttons |= JOY_DOWN;
-    if (key_status['Z'])      buttons |= JOY_A;
-    if (key_status['X'])      buttons |= JOY_B;
-    if (key_status[0x0d])  buttons |= JOY_RUN;
-    if (key_status[0x08]) buttons |= JOY_SELECT;
-#endif
-    joypads[0] = buttons;
+    if (key_status[0x25])   hw_buttons |= GW_BUTTON_LEFT;
+    if (key_status[0x27])  hw_buttons |= GW_BUTTON_RIGHT;
+    if (key_status[0x26])     hw_buttons |= GW_BUTTON_UP;
+    if (key_status[0x28])   hw_buttons |= GW_BUTTON_DOWN;
+    if (key_status['Z'])      hw_buttons |= GW_BUTTON_A;
+    if (key_status['X'])      hw_buttons |= GW_BUTTON_B;
+    if (key_status[0x0d])  hw_buttons |= GW_BUTTON_TIME;
+    if (key_status[0x08]) hw_buttons |= GW_BUTTON_GAME;
+
+
+    return hw_buttons;
 }
 
+
+static void gw_check_time()
+{
+    static unsigned int is_gw_time_sync = 0;
+
+    // Update time before we can set it
+    time_t time_sec = time(NULL);
+    struct tm *rtc = localtime(&time_sec);
+    gw_time_t time = {0};
+
+    // Set times
+    time.hours = rtc->tm_hour;
+    time.minutes = rtc->tm_min;
+    time.seconds = rtc->tm_sec;
+
+    // update time every 30s
+    if ((time.seconds == 30) || (is_gw_time_sync == 0))
+    {
+        is_gw_time_sync = 1;
+        gw_system_set_time(time);
+    }
+}
+// Function to play PCM audio buffer
+void PlayAudioBuffer(char* buffer, int bufferSize) {
+    WAVEFORMATEX waveFormat;
+    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+    waveFormat.nChannels = 1;
+    waveFormat.nSamplesPerSec = GW_AUDIO_FREQ / 2;
+    waveFormat.wBitsPerSample = 16;
+    waveFormat.nBlockAlign = waveFormat.nChannels * waveFormat.wBitsPerSample / 8;
+    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+    waveFormat.cbSize = 0;
+
+    HWAVEOUT hWaveOut;
+    waveOutOpen(&hWaveOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
+
+    WAVEHDR waveHeader;
+    waveHeader.lpData = buffer;
+    waveHeader.dwBufferLength = bufferSize;
+    waveHeader.dwBytesRecorded = 0;
+    waveHeader.dwUser = 0;
+    waveHeader.dwFlags = 0;
+    waveHeader.dwLoops = 0;
+    waveOutPrepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
+    waveOutWrite(hWaveOut, &waveHeader, sizeof(WAVEHDR));
+
+    // Wait until audio finishes playing
+    while (!(waveHeader.dwFlags & WHDR_DONE)) {
+        Sleep(1);
+    }
+
+    waveOutUnprepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
+    waveOutClose(hWaveOut);
+}
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 3))
+    if (!mfb_open("pce", 320, 240, 3))
         return 0;
 #else
     overclock();
@@ -598,20 +647,29 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-    if (!InitPCE(44100, true, ROM, filesize)) {
+    ROM_DATA = ROM;
+    ROM_DATA_LENGTH = filesize;
 
-#if PICO_ON_DEVICE
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-#endif
-    }
+    gw_system_romload();
+    gw_system_sound_init();
+    gw_system_config();
+    gw_system_start();
+    gw_system_reset();
+
+
     while (!reboot) {
-
-            osd_input_read(PCE.Joypad.regs);
-            pce_run();
-            //osd_vsync();
-        // for(int x = 0; x <32; x++) graphics_set_palette(x, RGB888(bitmap.pal.color[x][0], bitmap.pal.color[x][1], bitmap.pal.color[x][2]));
+        gw_check_time();
 #if !PICO_ON_DEVICE
-        if (mfb_update(SCREEN, 60) == -1)
+        /* Emulate and Blit */
+        // Call the emulator function with number of clock cycles
+        // to execute on the emulated device
+        gw_system_run(GW_SYSTEM_CYCLES);
+
+        // Our refresh rate is 128Hz, which is way too fast for our display
+        // so make sure the previous frame is done sending before queuing a new one
+            gw_system_blit((unsigned short *)SCREEN);
+
+        if (mfb_update(SCREEN, 0) == -1)
             reboot = true;
 #else
         sleep_ms(33);
@@ -619,6 +677,14 @@ int main(int argc, char** argv) {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
         #endif
+        /* copy audio samples for DMA */
+        char mixbuffer[GW_AUDIO_BUFFER_LENGTH];
+        for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
+        {
+            mixbuffer[i] =gw_audio_buffer[i];
+        }
+        PlayAudioBuffer((char *)gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH);
+
     }
     reboot = false;
 }
