@@ -558,7 +558,7 @@ unsigned int gw_get_buttons()
     if (key_status['Z'])      hw_buttons |= GW_BUTTON_A;
     if (key_status['X'])      hw_buttons |= GW_BUTTON_B;
     if (key_status[0x0d])  hw_buttons |= GW_BUTTON_TIME;
-    if (key_status[0x08]) hw_buttons |= GW_BUTTON_GAME;
+    if (key_status[0x20]) hw_buttons |= GW_BUTTON_GAME;
 
 
     return hw_buttons;
