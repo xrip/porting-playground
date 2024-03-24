@@ -1,3 +1,4 @@
+#pragma GCC optimize("Ofast")
 /* See LICENSE file for license details */
 
 /* Standard library includes */
@@ -5,15 +6,16 @@
 #include <cstdint>
 
 
-
 extern "C" {
-#include "kiwi/megadrive.h"
+// #include "pce-go/pce-go.h"
+#include <pce-go/pce.h>
 }
-
+size_t filesize = 0;
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
-uint16_t SCREEN[224][320];
+uint8_t SCREEN[XBUF_HEIGHT][XBUF_WIDTH];
+
 #else
 #include <hardware/clocks.h>
 #include <hardware/flash.h>
@@ -26,14 +28,15 @@ uint16_t SCREEN[224][320];
 #include "ps2kbd_mrmltr.h"
 #include "ff.h"
 
-#define HOME_DIR "\\SEGA"
+#define HOME_DIR "\\PCE"
 extern char __flash_binary_end;
 // #define FLASH_TARGET_OFFSET (((((uintptr_t)&__flash_binary_end - XIP_BASE) / FLASH_SECTOR_SIZE) + 1) * FLASH_SECTOR_SIZE)
 // uintptr_t ROM = XIP_BASE + FLASH_TARGET_OFFSET;
 #define FLASH_TARGET_OFFSET (1024 * 1024)
 const uint8_t* ROM = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+
 semaphore vga_start_semaphore;
-uint8_t SCREEN[224][320];
+uint8_t SCREEN[XBUF_HEIGHT][XBUF_WIDTH];
 static FATFS fs;
 #endif
 
@@ -46,7 +49,7 @@ void readfile(const char* pathname, uint8_t* dst) {
     fseek(file, 0, SEEK_END);
     size_t size = ftell(file);
     fseek(file, 0, SEEK_SET);
-
+    filesize = size;
     fread(dst, sizeof(uint8_t), size, file);
 }
 #else
@@ -70,6 +73,8 @@ static input_bits_t gamepad1_bits = {};
 static input_bits_t gamepad2_bits = {};
 
 void nespad_tick() {
+    int smsButtons = 0;
+    int smsSystem = 0 ;
     nespad_read();
 
     gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
@@ -89,6 +94,7 @@ void nespad_tick() {
     gamepad2_bits.down = (nespad_state2 & DPAD_DOWN) != 0;
     gamepad2_bits.left = (nespad_state2 & DPAD_LEFT) != 0;
     gamepad2_bits.right = (nespad_state2 & DPAD_RIGHT) != 0;
+
 }
 
 static bool isInReport(hid_keyboard_report_t const* report, const unsigned char keycode) {
@@ -137,10 +143,11 @@ void __scratch_x("render") render_core() {
     graphics_init();
 
     const auto buffer = (uint8_t *)SCREEN;
-    graphics_set_buffer(buffer, 320, 224);
+    graphics_set_buffer(buffer, XBUF_WIDTH, XBUF_HEIGHT);
+    // graphics_set_offset(32, 24);
+    graphics_set_offset(0, 0);
     graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
-    graphics_set_offset(0, 0);
 
     graphics_set_flashmode(true, true);
     sem_acquire_blocking(&vga_start_semaphore);
@@ -236,6 +243,7 @@ bool filebrowser_loadfile(const char pathname[256]) {
 
     FILINFO fileinfo;
     f_stat(pathname, &fileinfo);
+    filesize = fileinfo.fsize;
 
     if (16384 - 64 << 10 < fileinfo.fsize) {
         draw_text("ERROR: ROM too large! Canceled!!", window_x + 1, window_y + 2, 13, 1);
@@ -471,15 +479,106 @@ void filebrowser(const char pathname[256], const char executables[11]) {
     }
 }
 #endif
-extern int screen_width, screen_height;
+uint8_t *osd_gfx_framebuffer(int width, int height)
+{
+    //printf("%d x %d\r\n", width, height);
+    return (uint8_t *)SCREEN;
+}
+
+
+void osd_vsync(void)
+{
+    /*static int64_t lasttime, prevtime;
+
+    if (drawFrame)
+    {
+        slowFrame = !rg_display_sync(false);
+        rg_display_submit(currentUpdate, 0);
+        currentUpdate = &updates[currentUpdate == &updates[0]];
+    }
+
+    // See if we need to skip a frame to keep up
+    if (skipFrames == 0)
+    {
+        if (app->frameskip > 0)
+            skipFrames = app->frameskip;
+        else if (drawFrame && slowFrame)
+            skipFrames = 1;
+    }
+    else if (skipFrames > 0)
+    {
+        skipFrames--;
+    }
+
+    int64_t curtime = rg_system_timer();
+    int frameTime = 1000000 / (app->tickRate * app->speed);
+    int sleep = frameTime - (curtime - lasttime);
+
+    if (sleep > frameTime)
+    {
+        RG_LOGE("Our vsync timer seems to have overflowed! (%dus)", sleep);
+    }
+    else if (sleep > 0)
+    {
+        rg_usleep(sleep);
+    }
+    else if (sleep < -(frameTime / 2))
+    {
+        skipFrames++;
+    }
+
+    rg_system_tick(curtime - prevtime);
+
+    prevtime = rg_system_timer();
+    lasttime += frameTime;
+
+    if ((lasttime + frameTime) < prevtime)
+        lasttime = prevtime;
+
+    drawFrame = (skipFrames == 0);*/
+
+}
+
+
+
+void osd_input_read(uint8_t joypads[8])
+{
+
+    uint32_t buttons = 0;
+/*
+    'X', // A
+    'Z', // B
+    0x08, // Select
+    0x0D, // Start
+    0x26, // Dpad Up
+    0x28, // Dpad Down
+    0x25, // Dpad Left
+    0x27, // Dpad Right
+*/
+#if !PICO_ON_DEVICE
+    uint8_t * key_status  = (uint8_t *)mfb_keystatus();
+    if (key_status[0x25])   buttons |= JOY_LEFT;
+    if (key_status[0x27])  buttons |= JOY_RIGHT;
+    if (key_status[0x26])     buttons |= JOY_UP;
+    if (key_status[0x28])   buttons |= JOY_DOWN;
+    if (key_status['Z'])      buttons |= JOY_A;
+    if (key_status['X'])      buttons |= JOY_B;
+    if (key_status[0x0d])  buttons |= JOY_RUN;
+    if (key_status[0x08]) buttons |= JOY_SELECT;
+#endif
+    joypads[0] = buttons;
+}
+
+
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-
-    if (!mfb_open("sega", 320, 224, 3))
+    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 3))
         return 0;
 #else
     overclock();
+
+    stdio_init_all();
 
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
@@ -495,21 +594,30 @@ int main(int argc, char** argv) {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
     graphics_set_mode(TEXTMODE_DEFAULT);
-    filebrowser(HOME_DIR, "bin,md,gen,smd");
+    filebrowser(HOME_DIR, "pce");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-    set_rom((unsigned char *)ROM);
-    vdp_set_buffers((unsigned char *)SCREEN);
+    if (!InitPCE(44100, true, ROM, filesize)) {
 
+#if PICO_ON_DEVICE
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
+    }
     while (!reboot) {
-        frame();
+
+            osd_input_read(PCE.Joypad.regs);
+            pce_run();
+            //osd_vsync();
+        // for(int x = 0; x <32; x++) graphics_set_palette(x, RGB888(bitmap.pal.color[x][0], bitmap.pal.color[x][1], bitmap.pal.color[x][2]));
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
 #else
-        graphics_set_buffer((uint8_t *)SCREEN, screen_width, screen_height);
-        graphics_set_offset(screen_width != 320 ? 32 : 0, screen_height != 240 ? 8 : 0);
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
         #endif
     }
     reboot = false;

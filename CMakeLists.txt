@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(kiwi C CXX ASM)
+project(smsplus C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 
 option(I2S "Enable I2S sound" OFF)
@@ -16,7 +16,6 @@ option(SOFTTV "Enable TV soft composite output" OFF)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
@@ -25,8 +24,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 if (PICO_PLATFORM STREQUAL "host")
 else()
-    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}  -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -DLSB_FIRST=1  -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLSB_FIRST=1 -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
 
     pico_sdk_init()
 
@@ -63,6 +62,7 @@ if (PICO_PLATFORM STREQUAL "host")
 target_link_libraries(${PROJECT_NAME}
         winmm
 )
+    target_compile_definitions(${PROJECT_NAME} PRIVATE             LSB_FIRST=1)
 else()
     pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
     target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
@@ -122,7 +122,7 @@ else()
             pico_multicore
             hardware_flash
 
-            tinyusb_host
+            tinyusb_device
     )
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -156,9 +156,15 @@ else()
             TFT_DC_PIN=10
             TFT_DATA_PIN=12
             TFT_CLK_PIN=13
+            LSB_FIRST=1
+
     )
     pico_add_extra_outputs(${PROJECT_NAME})
+    pico_enable_stdio_usb(${PROJECT_NAME} 1)
+    pico_enable_stdio_uart(${PROJECT_NAME} 1)
 endif ()
+
+#pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 

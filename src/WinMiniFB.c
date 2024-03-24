@@ -1,3 +1,4 @@
+#include <pce-go/pce-go.h>
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 
@@ -16,7 +17,7 @@ static int s_height;
 static int s_scale = 1;
 static HDC s_hdc;
 static void* s_buffer;
-static BITMAPINFO* s_bitmapInfo;
+BITMAPINFO* s_bitmapInfo;
 static char key_status[512] = {};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +28,10 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
     switch (message) {
         case WM_PAINT: {
             if (s_buffer) {
-                StretchDIBits(s_hdc, 0, 0, s_width * s_scale, s_height * s_scale, 0, 0, s_width, s_height, s_buffer,
+                StretchDIBits(s_hdc,
+                    0, 0, s_width * s_scale, s_height * s_scale,
+                    0, 0, s_width, s_height,
+                    s_buffer,
                               s_bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 
                 ValidateRect(hWnd, NULL);
@@ -73,16 +77,16 @@ int mfb_open(const char* title, int width, int height, int scale) {
 
     RegisterClass(&s_wc);
 
-    rect.right = width * scale;
-    rect.bottom = height * scale;
+    rect.right = 256 * scale;
+    rect.bottom = 240 * scale;
 
     AdjustWindowRect(&rect, WS_POPUP | WS_SYSMENU | WS_CAPTION, 0);
 
     rect.right -= rect.left;
     rect.bottom -= rect.top;
 
-    s_width = width;
-    s_height = height;
+    s_width = 256;
+    s_height = 240;
     s_scale = scale;
 
     s_wnd = CreateWindowEx(0,
@@ -98,17 +102,45 @@ int mfb_open(const char* title, int width, int height, int scale) {
 
     ShowWindow(s_wnd, SW_NORMAL);
 
-    s_bitmapInfo = (BITMAPINFO *)calloc(1, sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 3);
+    s_bitmapInfo = (BITMAPINFO*)malloc(sizeof(BITMAPINFO) + sizeof(RGBQUAD) * 256);
     s_bitmapInfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    s_bitmapInfo->bmiHeader.biBitCount = 8;
     s_bitmapInfo->bmiHeader.biPlanes = 1;
-    s_bitmapInfo->bmiHeader.biBitCount = 16;
-    s_bitmapInfo->bmiHeader.biCompression = BI_BITFIELDS;
     s_bitmapInfo->bmiHeader.biWidth = width;
     s_bitmapInfo->bmiHeader.biHeight = -height;
+    s_bitmapInfo->bmiHeader.biCompression = 0;
+    s_bitmapInfo->bmiHeader.biSizeImage = 0;
+    // s_bitmapInfo->bmiHeader.biXPelsPerMeter = 14173;
+    // s_bitmapInfo->bmiHeader.biYPelsPerMeter = 14173;
+    s_bitmapInfo->bmiHeader.biClrUsed = 256;
+    s_bitmapInfo->bmiHeader.biClrImportant = 1;
+
+    RGBQUAD* palette = &s_bitmapInfo->bmiColors[0];
+    // for (int i = 0; i < 256; ++i)
+    // {
+    //     RGBQUAD rgb = {0};
+    //     rgb.rgbRed =  ~i;
+    //     rgb.rgbGreen =  ~i;
+    //     rgb.rgbBlue =  ~i;
+    //     palette[i] = rgb;
+    // }
+    for (int i = 0; i < 256; i++) {
+            uint8_t *ptr = &palette[i];
+            *ptr++ = ((i & 0x03) << 2) * 16;
+            *ptr++ = ((i & 0xe0) >> 4) * 16;
+            *ptr = ((i & 0x1C) >> 1) * 16;
+    }
+
+
+
+/*
+    s_bitmapInfo->bmiHeader.biBitCount = 16;
+    s_bitmapInfo->bmiHeader.biCompression = BI_BITFIELDS;
 
     ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xF800;
     ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x07E0;
     ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
+*/
     // ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0x001F;
     // ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x001F;
     // ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
