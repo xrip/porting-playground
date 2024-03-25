@@ -32,7 +32,7 @@ uint16_t SCREEN[224][320];
 #include "ps2kbd_mrmltr.h"
 #include "ff.h"
 
-#define HOME_DIR "\\PCE"
+#define HOME_DIR "\\SEGA"
 extern char __flash_binary_end;
 // #define FLASH_TARGET_OFFSET (((((uintptr_t)&__flash_binary_end - XIP_BASE) / FLASH_SECTOR_SIZE) + 1) * FLASH_SECTOR_SIZE)
 // uintptr_t ROM = XIP_BASE + FLASH_TARGET_OFFSET;
@@ -40,7 +40,7 @@ extern char __flash_binary_end;
 const uint8_t* ROM = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
 
 semaphore vga_start_semaphore;
-uint16_t SCREEN[GW_SCREEN_HEIGHT][GW_SCREEN_WIDTH];
+uint8_t SCREEN[224][320];
 static FATFS fs;
 #endif
 
@@ -225,7 +225,7 @@ void __scratch_x("render") render_core() {
     graphics_init();
 
     const auto buffer = (uint8_t *)SCREEN;
-    graphics_set_buffer(buffer, GW_SCREEN_WIDTH, GW_SCREEN_HEIGHT);
+    graphics_set_buffer(buffer, 320, 224);
     // graphics_set_offset(32, 24);
     graphics_set_offset(0, 0);
     graphics_set_textbuffer(buffer);
@@ -582,7 +582,7 @@ uint8_t *osd_gfx_framebuffer(int width, int height)
 {
     return (uint8_t *)SCREEN;
 }
-
+extern int screen_width, screen_height;
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
@@ -609,7 +609,7 @@ int main(int argc, char** argv) {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
     graphics_set_mode(TEXTMODE_DEFAULT);
-    filebrowser(HOME_DIR, "pce");
+    filebrowser(HOME_DIR, "bin,md,gen,smd");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
     set_rom((unsigned char *)ROM);
@@ -621,10 +621,8 @@ int main(int argc, char** argv) {
         if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
 #else
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
+        graphics_set_buffer((uint8_t *)SCREEN, screen_width, screen_height);
+        graphics_set_offset(screen_width != 320 ? 32 : 0, screen_height != 240 ? 8 : 0);
 #endif
 
     }
