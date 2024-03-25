@@ -15,7 +15,6 @@ extern "C" {
 size_t filesize = 0;
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
-int16_t audio_buffer[AUDIO_BUFFER_LENGTH*2];
 
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
