@@ -630,7 +630,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
         while (currentHeader->dwFlags & WHDR_DONE) {
-            short * ptr = (short *)currentHeader->lpData;
+            unsigned short * ptr = (unsigned short *)currentHeader->lpData;
             for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
             {
                 *ptr++ = gw_audio_buffer[i] << 13;
