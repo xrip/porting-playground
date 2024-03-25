@@ -60,9 +60,45 @@ void readfile(const char* pathname, uint8_t* dst) {
 static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
 
 /* callback to get buttons state */
-unsigned int gw_get_buttons()
-{
+void get_buttons() {
+    enum gwenesis_bus_pad_button
+    {
+        PAD_UP,
+        PAD_DOWN,
+        PAD_LEFT,
+        PAD_RIGHT,
+        PAD_B,
+        PAD_C,
+        PAD_A,
+        PAD_S
+    };
 
+        button_state[0] =
+                          !key_status[0x25] << PAD_LEFT |
+                          !key_status[0x27] << PAD_RIGHT |
+                          !key_status[0x26] << PAD_UP |
+                          !key_status[0x28] << PAD_DOWN |
+                          !key_status[0x0d] << PAD_S |
+                          !key_status['Z'] << PAD_A |
+                          !key_status['X'] << PAD_B |
+                          !key_status['C'] << PAD_C;
+
+
+
+
+    button_state[0] = ~button_state[0];
+    button_state[1] =
+                  !key_status['A'] << 7 |
+                  !key_status['S'] << 6 |
+                  !key_status['D'] << 5 |
+                  !key_status['F'] << 4 |
+                  !key_status['G'] << 3 |
+                  !key_status['H'] << 2 |
+                  !key_status['J'] << 1 |
+                  !key_status['K'] << 0;
+    button_state[1] = ~button_state[1];
+
+    /*
     if (key_status[0x25])   button_state[0] |= (1 << 2);
     if (key_status[0x27])  button_state[0] |= (1 << 3);
     if (key_status[0x26])     button_state[0] |= (1 << 0);
@@ -70,7 +106,8 @@ unsigned int gw_get_buttons()
     if (key_status['Z'])      button_state[0] |= (1 << 4);
     if (key_status['X'])      button_state[0] |= (1 << 5);
     if (key_status['C'])      button_state[0] |= (1 << 6);
-    if (key_status[0x0d])  button_state[0] |= (1 << 7);
+    if (key_status[0x0d])  button_state[0] |= (1 << 7);*/
+
     //if (key_status[0x20]) button_state[0] |= GW_BUTTON_GAME;
 }
 
@@ -561,22 +598,6 @@ void filebrowser(const char pathname[256], const char executables[11]) {
     }
 }
 
-unsigned int gw_get_buttons()
-{
-    uint32_t hw_buttons = 0;
-/*
-    if (key_status[0x25])   hw_buttons |= GW_BUTTON_LEFT;
-    if (key_status[0x27])  hw_buttons |= GW_BUTTON_RIGHT;
-    if (key_status[0x26])     hw_buttons |= GW_BUTTON_UP;
-    if (key_status[0x28])   hw_buttons |= GW_BUTTON_DOWN;
-    if (key_status['Z'])      hw_buttons |= GW_BUTTON_A;
-    if (key_status['X'])      hw_buttons |= GW_BUTTON_B;
-    if (key_status[0x0d])  hw_buttons |= GW_BUTTON_TIME;
-    if (key_status[0x20]) hw_buttons |= GW_BUTTON_GAME;
-*/
-
-    return hw_buttons;
-}
 #endif
 uint8_t *osd_gfx_framebuffer(int width, int height)
 {
@@ -616,6 +637,7 @@ int main(int argc, char** argv) {
     vdp_set_buffers((unsigned char *)SCREEN);
 
     while (!reboot) {
+        get_buttons();
         frame();
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)

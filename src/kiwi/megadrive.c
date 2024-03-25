@@ -175,6 +175,7 @@ void frame() {
     vdp_clear_vblank();
 
     for (line = 0; line < screen_height; line++) {
+
         m68k_execute(2560 + 120);
 
 
