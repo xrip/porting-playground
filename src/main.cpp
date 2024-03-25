@@ -4,13 +4,19 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
+#include <windows.h>
 
 
 extern "C" {
 // #include "pce-go/pce-go.h"
 #include <pce-go/pce.h>
+#include <pce-go/psg.h>
 }
 size_t filesize = 0;
+#define AUDIO_SAMPLE_RATE 44100
+#define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
+int16_t audio_buffer[AUDIO_BUFFER_LENGTH*2];
+
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
@@ -541,6 +547,7 @@ void osd_vsync(void)
 
 
 
+
 void osd_input_read(uint8_t joypads[8])
 {
 
@@ -564,9 +571,43 @@ void osd_input_read(uint8_t joypads[8])
     if (key_status['Z'])      buttons |= JOY_A;
     if (key_status['X'])      buttons |= JOY_B;
     if (key_status[0x0d])  buttons |= JOY_RUN;
-    if (key_status[0x08]) buttons |= JOY_SELECT;
+    if (key_status[0x20]) buttons |= JOY_SELECT;
 #endif
     joypads[0] = buttons;
+}
+DWORD WINAPI SoundThread(LPVOID lpParam) {
+    WAVEHDR waveHeader;
+    WAVEFORMATEX waveFormat;
+    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+    waveFormat.nChannels = 2;
+    waveFormat.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
+    waveFormat.wBitsPerSample = 16;
+    waveFormat.nBlockAlign = waveFormat.nChannels * waveFormat.wBitsPerSample / 8;
+    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+    waveFormat.cbSize = 0;
+
+    HWAVEOUT hWaveOut;
+    waveOutOpen(&hWaveOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
+    waveHeader.lpData =reinterpret_cast<char*>(audio_buffer);
+    waveHeader.dwBufferLength = AUDIO_BUFFER_LENGTH*2;
+    waveHeader.dwBytesRecorded = 0;
+    waveHeader.dwUser = WHDR_DONE;
+    waveHeader.dwFlags = 0;
+    waveHeader.dwLoops = 0;
+    waveOutPrepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
+    while (1) {
+        psg_update(audio_buffer, AUDIO_BUFFER_LENGTH , PSG_CHANNELS);
+
+
+        // Wait until audio finishes playing
+         while (!(waveHeader.dwFlags & WHDR_DONE)) {
+
+         }
+        waveOutWrite(hWaveOut, &waveHeader, sizeof(WAVEHDR));
+         // waveOutUnprepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
+        // waveOutClose(hWaveOut);
+    }
+    return 0;
 }
 
 
@@ -598,12 +639,15 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-    if (!InitPCE(44100, true, ROM, filesize)) {
+    if (!InitPCE(AUDIO_SAMPLE_RATE, true, ROM, filesize)) {
 
 #if PICO_ON_DEVICE
         gpio_put(PICO_DEFAULT_LED_PIN, false);
 #endif
     }
+    // Create sound thread
+    HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+
     while (!reboot) {
 
             osd_input_read(PCE.Joypad.regs);
@@ -619,6 +663,7 @@ int main(int argc, char** argv) {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
         #endif
+
     }
     reboot = false;
 }
