@@ -48,7 +48,7 @@ int dma_fill = 0;
 #define CRAM_B(c)          COLOR_3B_TO_8B(BITS((c), 9, 3))
 /* Set a pixel on the screen using the Color RAM */
 #if PICO_ON_DEVICE
-#define set_pixel(scr, x, y, index) scr[x+y*screen_width] = index % 64;
+#define set_pixel(scr, x, y, index) scr[x+y*screen_width] = index;
 #else
 #define __always_inline __inline__
 #define __time_critical_func(f) f
@@ -60,9 +60,8 @@ int dma_fill = 0;
 /*
  * Draw a single pixel of a cell 
  */
-static inline __always_inline
 void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
-    unsigned char* pattern = &VRAM[__fast_mul(cell & 0x7ff, 0x20)];
+    unsigned char* pattern = &VRAM[(cell & 0x7ff) * 0x20];
 
     int pattern_index;
     if (cell & 0x1000) /* v flip */
@@ -91,7 +90,6 @@ void draw_cell_pixel(unsigned int cell, int cell_x, int cell_y, int x, int y) {
 /*
  * Render the scroll layers (plane A and B)
  */
-static inline __always_inline
 void vdp_render_bg(int line, int priority) {
     int h_cells = 32, v_cells = 32;
 
@@ -157,7 +155,7 @@ void vdp_render_bg(int line, int priority) {
 /*
  * Render part of a sprite on a given line.
  */
-static inline void vdp_render_sprite(int sprite_index, int line) {
+void vdp_render_sprite(int sprite_index, int line) {
     unsigned char* sprite = &VRAM[(vdp_reg[5] << 9) + __fast_mul(sprite_index, 8)];
 
     unsigned short y_pos = (sprite[0] << 8 | sprite[1]) & 0x3ff;
@@ -230,7 +228,6 @@ void vdp_render_sprites(int line, int priority) {
 /*
  * Render a single line.
  */
-// static inline __attribute__((always_inline))
 void __time_critical_func(vdp_render_line)(int line) {
     /* Fill the screen with the backdrop color set in register 7 */
 #if PICO_ON_DEVICE
@@ -262,7 +259,6 @@ void vdp_debug_status(char* s) {
     }
 }
 
-static inline __attribute__((always_inline))
 void vdp_data_write(unsigned int value, int type, int dma) {
     switch (type) {
         case 0: case 1: /* VRAM write */
@@ -281,7 +277,6 @@ void vdp_data_write(unsigned int value, int type, int dma) {
     }
 }
 
-static inline __attribute__((always_inline))
 void vdp_data_port_write(unsigned int value) {
     if (control_code & 1) /* check if write is set */
     {
@@ -302,7 +297,6 @@ void vdp_data_port_write(unsigned int value) {
     }
 }
 
-static inline __attribute__((always_inline))
 void vdp_set_reg(int reg, unsigned char value) {
     if (vdp_reg[1] & 4 || reg <= 10)
         vdp_reg[reg] = value;
@@ -310,12 +304,10 @@ void vdp_set_reg(int reg, unsigned char value) {
     control_code = 0;
 }
 
-static inline __attribute__((always_inline))
 unsigned int vdp_get_reg(int reg) {
     return vdp_reg[reg];
 }
 
-static inline __attribute__((always_inline))
 void vdp_control_write(unsigned int value) {
     if (!control_pending) {
         if ((value & 0xc000) == 0x8000) {
@@ -420,12 +412,10 @@ unsigned int vdp_read(unsigned int address) {
     return 0;
 }
 
-static inline __attribute__((always_inline))
 unsigned int vdp_get_status() {
     return vdp_status;
 }
 
-static inline __attribute__((always_inline))
 uint16_t vdp_get_cram(int index) {
     return CRAM[index & 0x3f];
 }
