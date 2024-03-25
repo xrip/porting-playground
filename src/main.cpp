@@ -561,7 +561,6 @@ bool S9xInitDisplay(void)
     GFX.SubScreen = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
     GFX.ZBuffer = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
     GFX.SubZBuffer = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
-    GFX.Delta = 1048576;
     return GFX.Screen && GFX.SubScreen && GFX.ZBuffer && GFX.SubZBuffer;
 }
 
@@ -635,8 +634,8 @@ void JustifierButtons(uint32_t *justifiers)
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
-    //readfile(argv[1], ROM);
-    if (!mfb_open("sfc", SNES_WIDTH, SNES_HEIGHT, 3))
+
+    if (!mfb_open("sfc", SNES_WIDTH, SNES_HEIGHT, 5))
         return 0;
     CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 #else
@@ -686,6 +685,8 @@ int main(int argc, char** argv) {
     if (!S9xInitGFX())
         printf("Graphics init failed!");
 
+    // readfile(argv[1], Memory.ROM);
+    // Memory.ROM_Size = filesize;
     if (!LoadROM(argv[1]))
         printf("ROM loading failed!");
 
