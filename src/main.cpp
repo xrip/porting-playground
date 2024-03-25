@@ -7,22 +7,18 @@
 
 
 extern "C" {
-#include <gw/gw_sys/gw_system.h>
-#include <gw/gw_sys/gw_romloader.h>
-#include <gw/rom_manager.h>
+#include "kiwi/megadrive.h"
 }
+#define AUDIO_SAMPLE_RATE 44100
+#define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60) + 1
 size_t filesize = 0;
-#define AUDIO_SAMPLE_RATE GW_AUDIO_FREQ
-#define AUDIO_BUFFER_LENGTH GW_AUDIO_BUFFER_LENGTH
-
-unsigned char *ROM_DATA;
-unsigned int ROM_DATA_LENGTH;
+extern unsigned short button_state[3];
 #if !PICO_ON_DEVICE
 #include <windows.h>
 #include <bits/locale_classes.h>
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
-uint16_t SCREEN[GW_SCREEN_HEIGHT][GW_SCREEN_WIDTH];
+uint16_t SCREEN[224][320];
 
 #else
 #include <hardware/clocks.h>
@@ -66,43 +62,19 @@ static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
 /* callback to get buttons state */
 unsigned int gw_get_buttons()
 {
-    uint32_t hw_buttons = 0;
 
-    if (key_status[0x25])   hw_buttons |= GW_BUTTON_LEFT;
-    if (key_status[0x27])  hw_buttons |= GW_BUTTON_RIGHT;
-    if (key_status[0x26])     hw_buttons |= GW_BUTTON_UP;
-    if (key_status[0x28])   hw_buttons |= GW_BUTTON_DOWN;
-    if (key_status['Z'])      hw_buttons |= GW_BUTTON_A;
-    if (key_status['X'])      hw_buttons |= GW_BUTTON_B;
-    if (key_status[0x0d])  hw_buttons |= GW_BUTTON_TIME;
-    if (key_status[0x20]) hw_buttons |= GW_BUTTON_GAME;
-
-
-    return hw_buttons;
+    if (key_status[0x25])   button_state[0] |= (1 << 2);
+    if (key_status[0x27])  button_state[0] |= (1 << 3);
+    if (key_status[0x26])     button_state[0] |= (1 << 0);
+    if (key_status[0x28])   button_state[0] |= (1 << 1);
+    if (key_status['Z'])      button_state[0] |= (1 << 4);
+    if (key_status['X'])      button_state[0] |= (1 << 5);
+    if (key_status['C'])      button_state[0] |= (1 << 6);
+    if (key_status[0x0d])  button_state[0] |= (1 << 7);
+    //if (key_status[0x20]) button_state[0] |= GW_BUTTON_GAME;
 }
 
 
-static void gw_check_time()
-{
-    static unsigned int is_gw_time_sync = 0;
-
-    // Update time before we can set it
-    time_t time_sec = time(NULL);
-    struct tm *rtc = localtime(&time_sec);
-    gw_time_t time = {0};
-
-    // Set times
-    time.hours = rtc->tm_hour;
-    time.minutes = rtc->tm_min;
-    time.seconds = rtc->tm_sec;
-
-    // update time every 30s
-    if ((time.seconds == 30) || (is_gw_time_sync == 0))
-    {
-        is_gw_time_sync = 1;
-        gw_system_set_time(time);
-    }
-}
 
 DWORD WINAPI SoundThread(LPVOID lpParam) {
     WAVEHDR waveHeaders[4];
@@ -144,13 +116,14 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
         while (currentHeader->dwFlags & WHDR_DONE) {
+            /*
             unsigned short * ptr = (unsigned short *)currentHeader->lpData;
-            for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
+            for (size_t i = 0; i < AUDIO_BUFFER_LENGTH; i++)
             {
                 *ptr++ = gw_audio_buffer[i] << 13;
                 *ptr++ = gw_audio_buffer[i] << 13;
             }
-            gw_audio_buffer_copied = true;
+            */
             //memcpy(currentHeader->lpData, gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH * 2);
             //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
             waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
@@ -614,9 +587,9 @@ uint8_t *osd_gfx_framebuffer(int width, int height)
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-    if (!mfb_open("gnw", 320, 240, 4))
+    if (!mfb_open("sega", 320, 224, 3))
         return 0;
-    CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+    // CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 #else
     overclock();
 
@@ -639,29 +612,13 @@ int main(int argc, char** argv) {
     filebrowser(HOME_DIR, "pce");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
-
-    ROM_DATA = (unsigned char*) ROM;
-    ROM_DATA_LENGTH = filesize;
-
-    gw_system_romload();
-    gw_system_sound_init();
-    gw_system_config();
-    gw_system_start();
-    gw_system_reset();
-
+    set_rom((unsigned char *)ROM);
+    vdp_set_buffers((unsigned char *)SCREEN);
 
     while (!reboot) {
-        /* Emulate and Blit */
-        // Call the emulator function with number of clock cycles
-        // to execute on the emulated device
-        gw_system_run(GW_SYSTEM_CYCLES);
-
-        // Our refresh rate is 128Hz, which is way too fast for our display
-        // so make sure the previous frame is done sending before queuing a new one
-        gw_system_blit((unsigned short *)SCREEN);
+        frame();
 #if !PICO_ON_DEVICE
-        gw_check_time();
-        if (mfb_update(SCREEN, GW_REFRESH_RATE) == -1)
+        if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
 #else
         sleep_ms(33);
