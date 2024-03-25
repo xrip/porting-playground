@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(smsplus C CXX ASM)
+project(pce C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 
 option(I2S "Enable I2S sound" OFF)
