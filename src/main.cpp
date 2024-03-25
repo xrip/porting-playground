@@ -4,8 +4,6 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
-#include <windows.h>
-#include <bits/locale_classes.h>
 
 
 extern "C" {
@@ -20,6 +18,8 @@ size_t filesize = 0;
 unsigned char *ROM_DATA;
 unsigned int ROM_DATA_LENGTH;
 #if !PICO_ON_DEVICE
+#include <windows.h>
+#include <bits/locale_classes.h>
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
 uint16_t SCREEN[GW_SCREEN_HEIGHT][GW_SCREEN_WIDTH];
@@ -44,7 +44,7 @@ extern char __flash_binary_end;
 const uint8_t* ROM = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
 
 semaphore vga_start_semaphore;
-uint8_t SCREEN[XBUF_HEIGHT][XBUF_WIDTH];
+uint16_t SCREEN[GW_SCREEN_HEIGHT][GW_SCREEN_WIDTH];
 static FATFS fs;
 #endif
 
@@ -59,6 +59,107 @@ void readfile(const char* pathname, uint8_t* dst) {
     fseek(file, 0, SEEK_SET);
     filesize = size;
     fread(dst, sizeof(uint8_t), size, file);
+}
+
+static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
+
+/* callback to get buttons state */
+unsigned int gw_get_buttons()
+{
+    uint32_t hw_buttons = 0;
+
+    if (key_status[0x25])   hw_buttons |= GW_BUTTON_LEFT;
+    if (key_status[0x27])  hw_buttons |= GW_BUTTON_RIGHT;
+    if (key_status[0x26])     hw_buttons |= GW_BUTTON_UP;
+    if (key_status[0x28])   hw_buttons |= GW_BUTTON_DOWN;
+    if (key_status['Z'])      hw_buttons |= GW_BUTTON_A;
+    if (key_status['X'])      hw_buttons |= GW_BUTTON_B;
+    if (key_status[0x0d])  hw_buttons |= GW_BUTTON_TIME;
+    if (key_status[0x20]) hw_buttons |= GW_BUTTON_GAME;
+
+
+    return hw_buttons;
+}
+
+
+static void gw_check_time()
+{
+    static unsigned int is_gw_time_sync = 0;
+
+    // Update time before we can set it
+    time_t time_sec = time(NULL);
+    struct tm *rtc = localtime(&time_sec);
+    gw_time_t time = {0};
+
+    // Set times
+    time.hours = rtc->tm_hour;
+    time.minutes = rtc->tm_min;
+    time.seconds = rtc->tm_sec;
+
+    // update time every 30s
+    if ((time.seconds == 30) || (is_gw_time_sync == 0))
+    {
+        is_gw_time_sync = 1;
+        gw_system_set_time(time);
+    }
+}
+
+DWORD WINAPI SoundThread(LPVOID lpParam) {
+    WAVEHDR waveHeaders[4];
+
+    WAVEFORMATEX format = { 0 };
+    format.wFormatTag = WAVE_FORMAT_PCM;
+    format.nChannels = 2;
+    format.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
+    format.wBitsPerSample = 16;
+    format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
+    format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+
+    HANDLE waveEvent = CreateEvent(NULL, 1,0, NULL);
+
+    HWAVEOUT hWaveOut;
+    waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
+
+    for (size_t i = 0; i < 4; i++) {
+        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2];
+        waveHeaders[i] = (WAVEHDR) {
+            .lpData = (char*)audio_buffers[i],
+            .dwBufferLength = AUDIO_BUFFER_LENGTH * 4,
+        };
+        waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
+        waveHeaders[i].dwFlags |= WHDR_DONE;
+    }
+    WAVEHDR* currentHeader = waveHeaders;
+
+    while (true) {
+        if (WaitForSingleObject(waveEvent, INFINITE)) {
+            fprintf(stderr, "Failed to wait for event.\n");
+            return 1;
+        }
+
+        if (!ResetEvent(waveEvent)) {
+            fprintf(stderr, "Failed to reset event.\n");
+            return 1;
+        }
+
+        // Wait until audio finishes playing
+        while (currentHeader->dwFlags & WHDR_DONE) {
+            unsigned short * ptr = (unsigned short *)currentHeader->lpData;
+            for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
+            {
+                *ptr++ = gw_audio_buffer[i] << 13;
+                *ptr++ = gw_audio_buffer[i] << 13;
+            }
+            gw_audio_buffer_copied = true;
+            //memcpy(currentHeader->lpData, gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH * 2);
+            //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
+            waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
+
+            currentHeader++;
+            if (currentHeader == waveHeaders + 4) { currentHeader = waveHeaders; }
+        }
+    }
+    return 0;
 }
 #else
 typedef struct __attribute__((__packed__)) {
@@ -151,7 +252,7 @@ void __scratch_x("render") render_core() {
     graphics_init();
 
     const auto buffer = (uint8_t *)SCREEN;
-    graphics_set_buffer(buffer, XBUF_WIDTH, XBUF_HEIGHT);
+    graphics_set_buffer(buffer, GW_SCREEN_WIDTH, GW_SCREEN_HEIGHT);
     // graphics_set_offset(32, 24);
     graphics_set_offset(0, 0);
     graphics_set_textbuffer(buffer);
@@ -486,74 +587,11 @@ void filebrowser(const char pathname[256], const char executables[11]) {
         }
     }
 }
-#endif
-uint8_t *osd_gfx_framebuffer(int width, int height)
-{
-    //printf("%d x %d\r\n", width, height);
-    return (uint8_t *)SCREEN;
-}
 
-
-void osd_vsync(void)
-{
-    /*static int64_t lasttime, prevtime;
-
-    if (drawFrame)
-    {
-        slowFrame = !rg_display_sync(false);
-        rg_display_submit(currentUpdate, 0);
-        currentUpdate = &updates[currentUpdate == &updates[0]];
-    }
-
-    // See if we need to skip a frame to keep up
-    if (skipFrames == 0)
-    {
-        if (app->frameskip > 0)
-            skipFrames = app->frameskip;
-        else if (drawFrame && slowFrame)
-            skipFrames = 1;
-    }
-    else if (skipFrames > 0)
-    {
-        skipFrames--;
-    }
-
-    int64_t curtime = rg_system_timer();
-    int frameTime = 1000000 / (app->tickRate * app->speed);
-    int sleep = frameTime - (curtime - lasttime);
-
-    if (sleep > frameTime)
-    {
-        RG_LOGE("Our vsync timer seems to have overflowed! (%dus)", sleep);
-    }
-    else if (sleep > 0)
-    {
-        rg_usleep(sleep);
-    }
-    else if (sleep < -(frameTime / 2))
-    {
-        skipFrames++;
-    }
-
-    rg_system_tick(curtime - prevtime);
-
-    prevtime = rg_system_timer();
-    lasttime += frameTime;
-
-    if ((lasttime + frameTime) < prevtime)
-        lasttime = prevtime;
-
-    drawFrame = (skipFrames == 0);*/
-
-}
-
-static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-
-/* callback to get buttons state */
 unsigned int gw_get_buttons()
 {
     uint32_t hw_buttons = 0;
-
+/*
     if (key_status[0x25])   hw_buttons |= GW_BUTTON_LEFT;
     if (key_status[0x27])  hw_buttons |= GW_BUTTON_RIGHT;
     if (key_status[0x26])     hw_buttons |= GW_BUTTON_UP;
@@ -562,97 +600,23 @@ unsigned int gw_get_buttons()
     if (key_status['X'])      hw_buttons |= GW_BUTTON_B;
     if (key_status[0x0d])  hw_buttons |= GW_BUTTON_TIME;
     if (key_status[0x20]) hw_buttons |= GW_BUTTON_GAME;
-
+*/
 
     return hw_buttons;
 }
-
-
-static void gw_check_time()
+#endif
+uint8_t *osd_gfx_framebuffer(int width, int height)
 {
-    static unsigned int is_gw_time_sync = 0;
-
-    // Update time before we can set it
-    time_t time_sec = time(NULL);
-    struct tm *rtc = localtime(&time_sec);
-    gw_time_t time = {0};
-
-    // Set times
-    time.hours = rtc->tm_hour;
-    time.minutes = rtc->tm_min;
-    time.seconds = rtc->tm_sec;
-
-    // update time every 30s
-    if ((time.seconds == 30) || (is_gw_time_sync == 0))
-    {
-        is_gw_time_sync = 1;
-        gw_system_set_time(time);
-    }
+    return (uint8_t *)SCREEN;
 }
 
-DWORD WINAPI SoundThread(LPVOID lpParam) {
-    WAVEHDR waveHeaders[4];
-
-    WAVEFORMATEX format = { 0 };
-    format.wFormatTag = WAVE_FORMAT_PCM;
-    format.nChannels = 2;
-    format.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
-    format.wBitsPerSample = 16;
-    format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
-    format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
-
-    HANDLE waveEvent = CreateEvent(NULL, 1,0, NULL);
-
-    HWAVEOUT hWaveOut;
-    waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
-
-    for (size_t i = 0; i < 4; i++) {
-        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2];
-        waveHeaders[i] = (WAVEHDR) {
-            .lpData = (char*)audio_buffers[i],
-            .dwBufferLength = AUDIO_BUFFER_LENGTH * 4,
-        };
-        waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
-        waveHeaders[i].dwFlags |= WHDR_DONE;
-    }
-    WAVEHDR* currentHeader = waveHeaders;
-
-    while (true) {
-        if (WaitForSingleObject(waveEvent, INFINITE)) {
-            fprintf(stderr, "Failed to wait for event.\n");
-            return 1;
-        }
-
-        if (!ResetEvent(waveEvent)) {
-            fprintf(stderr, "Failed to reset event.\n");
-            return 1;
-        }
-
-        // Wait until audio finishes playing
-        while (currentHeader->dwFlags & WHDR_DONE) {
-            unsigned short * ptr = (unsigned short *)currentHeader->lpData;
-            for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
-            {
-                *ptr++ = gw_audio_buffer[i] << 13;
-                *ptr++ = gw_audio_buffer[i] << 13;
-            }
-            gw_audio_buffer_copied = true;
-            //memcpy(currentHeader->lpData, gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH * 2);
-            //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
-            waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
-
-            currentHeader++;
-            if (currentHeader == waveHeaders + 4) { currentHeader = waveHeaders; }
-        }
-    }
-    return 0;
-}
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
     if (!mfb_open("gnw", 320, 240, 4))
         return 0;
+    CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 #else
     overclock();
 
@@ -676,7 +640,7 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-    ROM_DATA = ROM;
+    ROM_DATA = (unsigned char*) ROM;
     ROM_DATA_LENGTH = filesize;
 
     gw_system_romload();
@@ -685,10 +649,8 @@ int main(int argc, char** argv) {
     gw_system_start();
     gw_system_reset();
 
-    CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+
     while (!reboot) {
-        gw_check_time();
-#if !PICO_ON_DEVICE
         /* Emulate and Blit */
         // Call the emulator function with number of clock cycles
         // to execute on the emulated device
@@ -696,8 +658,9 @@ int main(int argc, char** argv) {
 
         // Our refresh rate is 128Hz, which is way too fast for our display
         // so make sure the previous frame is done sending before queuing a new one
-            gw_system_blit((unsigned short *)SCREEN);
-
+        gw_system_blit((unsigned short *)SCREEN);
+#if !PICO_ON_DEVICE
+        gw_check_time();
         if (mfb_update(SCREEN, GW_REFRESH_RATE) == -1)
             reboot = true;
 #else
@@ -705,7 +668,7 @@ int main(int argc, char** argv) {
         gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
-        #endif
+#endif
 
     }
     reboot = false;
