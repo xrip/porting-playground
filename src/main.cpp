@@ -13,7 +13,7 @@ extern "C" {
 #include <pce-go/psg.h>
 }
 size_t filesize = 0;
-#define AUDIO_SAMPLE_RATE 44100
+#define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
 int16_t audio_buffer[AUDIO_BUFFER_LENGTH*2];
 
@@ -575,37 +575,54 @@ void osd_input_read(uint8_t joypads[8])
 #endif
     joypads[0] = buttons;
 }
+
+
 DWORD WINAPI SoundThread(LPVOID lpParam) {
-    WAVEHDR waveHeader;
-    WAVEFORMATEX waveFormat;
-    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-    waveFormat.nChannels = 2;
-    waveFormat.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
-    waveFormat.wBitsPerSample = 16;
-    waveFormat.nBlockAlign = waveFormat.nChannels * waveFormat.wBitsPerSample / 8;
-    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
-    waveFormat.cbSize = 0;
+    WAVEHDR waveHeaders[4];
+
+    WAVEFORMATEX format = { 0 };
+    format.wFormatTag = WAVE_FORMAT_PCM;
+    format.nChannels = 2;
+    format.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
+    format.wBitsPerSample = 16;
+    format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
+    format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+
+    HANDLE waveEvent = CreateEvent(NULL, 1,0, NULL);
 
     HWAVEOUT hWaveOut;
-    waveOutOpen(&hWaveOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
-    waveHeader.lpData =reinterpret_cast<char*>(audio_buffer);
-    waveHeader.dwBufferLength = AUDIO_BUFFER_LENGTH*2;
-    waveHeader.dwBytesRecorded = 0;
-    waveHeader.dwUser = WHDR_DONE;
-    waveHeader.dwFlags = 0;
-    waveHeader.dwLoops = 0;
-    waveOutPrepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
-    while (1) {
-        psg_update(audio_buffer, AUDIO_BUFFER_LENGTH , PSG_CHANNELS);
+    waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
+    for (size_t i = 0; i < 4; i++) {
+        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2];
+        waveHeaders[i] = (WAVEHDR) {
+            .lpData = (char*)audio_buffers[i],
+            .dwBufferLength = AUDIO_BUFFER_LENGTH * 4,
+        };
+        waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
+        waveHeaders[i].dwFlags |= WHDR_DONE;
+    }
+    WAVEHDR* currentHeader = waveHeaders;
+
+    while (true) {
+        if (WaitForSingleObject(waveEvent, INFINITE)) {
+            fprintf(stderr, "Failed to wait for event.\n");
+            return 1;
+        }
+
+        if (!ResetEvent(waveEvent)) {
+            fprintf(stderr, "Failed to reset event.\n");
+            return 1;
+        }
 
         // Wait until audio finishes playing
-         while (!(waveHeader.dwFlags & WHDR_DONE)) {
+         while (currentHeader->dwFlags & WHDR_DONE) {
+             psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
+             waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
 
+             currentHeader++;
+             if (currentHeader == waveHeaders + 4) { currentHeader = waveHeaders; }
          }
-        waveOutWrite(hWaveOut, &waveHeader, sizeof(WAVEHDR));
-         // waveOutUnprepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
-        // waveOutClose(hWaveOut);
     }
     return 0;
 }
