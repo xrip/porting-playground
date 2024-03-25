@@ -6,19 +6,27 @@
 #include <cstdint>
 
 
+
 extern "C" {
-#include "kiwi/megadrive.h"
+#include "snes9x/snes9x.h"
+#include <snes9x/apu.h>
+#include <snes9x/display.h>
+#include <snes9x/gfx.h>
+#include <snes9x/cpuexec.h>
+#include <snes9x/soundux.h>
 }
-#define AUDIO_SAMPLE_RATE 44100
-#define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60) + 1
+#define AUDIO_SAMPLE_RATE (32040)
+#define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
+#define AUDIO_LOW_PASS_RANGE ((60 * 65536) / 100)
+int16_t mixbuffer[AUDIO_BUFFER_LENGTH*2];
+
 size_t filesize = 0;
-extern unsigned short button_state[3];
 #if !PICO_ON_DEVICE
 #include <windows.h>
 #include <bits/locale_classes.h>
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
-uint16_t SCREEN[224][320];
+uint16_t SCREEN[SNES_HEIGHT_EXTENDED][SNES_WIDTH];
 
 #else
 #include <hardware/clocks.h>
@@ -59,59 +67,6 @@ void readfile(const char* pathname, uint8_t* dst) {
 
 static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
 
-/* callback to get buttons state */
-void get_buttons() {
-    enum gwenesis_bus_pad_button
-    {
-        PAD_UP,
-        PAD_DOWN,
-        PAD_LEFT,
-        PAD_RIGHT,
-        PAD_B,
-        PAD_C,
-        PAD_A,
-        PAD_S
-    };
-
-        button_state[0] =
-                          !key_status[0x25] << PAD_LEFT |
-                          !key_status[0x27] << PAD_RIGHT |
-                          !key_status[0x26] << PAD_UP |
-                          !key_status[0x28] << PAD_DOWN |
-                          !key_status[0x0d] << PAD_S |
-                          !key_status['Z'] << PAD_A |
-                          !key_status['X'] << PAD_B |
-                          !key_status['C'] << PAD_C;
-
-
-
-
-    button_state[0] = ~button_state[0];
-    button_state[1] =
-                  !key_status['A'] << 7 |
-                  !key_status['S'] << 6 |
-                  !key_status['D'] << 5 |
-                  !key_status['F'] << 4 |
-                  !key_status['G'] << 3 |
-                  !key_status['H'] << 2 |
-                  !key_status['J'] << 1 |
-                  !key_status['K'] << 0;
-    button_state[1] = ~button_state[1];
-
-    /*
-    if (key_status[0x25])   button_state[0] |= (1 << 2);
-    if (key_status[0x27])  button_state[0] |= (1 << 3);
-    if (key_status[0x26])     button_state[0] |= (1 << 0);
-    if (key_status[0x28])   button_state[0] |= (1 << 1);
-    if (key_status['Z'])      button_state[0] |= (1 << 4);
-    if (key_status['X'])      button_state[0] |= (1 << 5);
-    if (key_status['C'])      button_state[0] |= (1 << 6);
-    if (key_status[0x0d])  button_state[0] |= (1 << 7);*/
-
-    //if (key_status[0x20]) button_state[0] |= GW_BUTTON_GAME;
-}
-
-
 
 DWORD WINAPI SoundThread(LPVOID lpParam) {
     WAVEHDR waveHeaders[4];
@@ -130,7 +85,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
     for (size_t i = 0; i < 4; i++) {
-        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2];
+        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2] = { 0 };
         waveHeaders[i] = (WAVEHDR) {
             .lpData = (char*)audio_buffers[i],
             .dwBufferLength = AUDIO_BUFFER_LENGTH * 4,
@@ -153,16 +108,14 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
         while (currentHeader->dwFlags & WHDR_DONE) {
-            /*
             unsigned short * ptr = (unsigned short *)currentHeader->lpData;
-            for (size_t i = 0; i < AUDIO_BUFFER_LENGTH; i++)
-            {
-                *ptr++ = gw_audio_buffer[i] << 13;
-                *ptr++ = gw_audio_buffer[i] << 13;
-            }
-            */
+            memcpy(currentHeader->lpData, mixbuffer, AUDIO_BUFFER_LENGTH*4);
+            // for (size_t i = 0; i < AUDIO_BUFFER_LENGTH*2; i++) {
+                // *ptr++ = mixbuffer[i];
+            // }
             //memcpy(currentHeader->lpData, gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH * 2);
             //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
+
             waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
 
             currentHeader++;
@@ -599,18 +552,93 @@ void filebrowser(const char pathname[256], const char executables[11]) {
 }
 
 #endif
-uint8_t *osd_gfx_framebuffer(int width, int height)
+
+bool S9xInitDisplay(void)
 {
-    return (uint8_t *)SCREEN;
+    GFX.Pitch = SNES_WIDTH * 2;
+    GFX.ZPitch = SNES_WIDTH;
+    GFX.Screen = (uint8_t*)SCREEN;
+    GFX.SubScreen = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
+    GFX.ZBuffer = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
+    GFX.SubZBuffer = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
+    GFX.Delta = 1048576;
+    return GFX.Screen && GFX.SubScreen && GFX.ZBuffer && GFX.SubZBuffer;
 }
-extern int screen_width, screen_height;
+
+void S9xDeinitDisplay(void)
+{
+}
+
+uint32_t S9xReadJoypad(int32_t port)
+{
+    if (port != 0)
+        return 0;
+/*
+    *    if (key_status[0x25])   buttons |= JOY_LEFT;
+    if (key_status[0x27])  buttons |= JOY_RIGHT;
+    if (key_status[0x26])     buttons |= JOY_UP;
+    if (key_status[0x28])   buttons |= JOY_DOWN;
+    if (key_status['Z'])      buttons |= JOY_A;
+    if (key_status['X'])      buttons |= JOY_B;
+    if (key_status[0x0d])  buttons |= JOY_RUN;
+    if (key_status[0x20]) buttons |= JOY_SELECT;
+    */
+    uint32_t joypad = 0;
+
+    joypad |= key_status[0x0d] ? SNES_START_MASK : 0;
+    joypad |= key_status[0x20] ? SNES_SELECT_MASK : 0;
+
+    joypad |= key_status['A'] ? SNES_Y_MASK : 0;
+    joypad |= key_status['S'] ? SNES_X_MASK : 0;
+
+    joypad |= key_status['Z'] ? SNES_B_MASK : 0;
+    joypad |= key_status['X'] ? SNES_A_MASK : 0;
+
+    joypad |= key_status['D'] ? SNES_TL_MASK : 0;
+    joypad |= key_status['C'] ? SNES_TR_MASK : 0;
+
+
+    joypad |= key_status[0x25] ? SNES_LEFT_MASK : 0;
+    joypad |= key_status[0x27] ? SNES_RIGHT_MASK : 0;
+    joypad |= key_status[0x26] ? SNES_UP_MASK : 0;
+    joypad |= key_status[0x28] ? SNES_DOWN_MASK : 0;
+    // joypad = key_status[0xd] << SNES_START_MASK |
+        // key_status[0x25] << SNES_LEFT_MASK |
+        // key_status[0x27] << SNES_RIGHT_MASK |
+        // key_status[0x26] << SNES_UP_MASK |
+        // key_status[0x86] << SNES_DOWN_MASK;
+
+    return joypad;
+}
+
+bool S9xReadMousePosition(int32_t which1, int32_t *x, int32_t *y, uint32_t *buttons)
+{
+    return false;
+}
+
+bool S9xReadSuperScopePosition(int32_t *x, int32_t *y, uint32_t *buttons)
+{
+    return false;
+}
+
+bool JustifierOffscreen(void)
+{
+    return true;
+}
+
+void JustifierButtons(uint32_t *justifiers)
+{
+    (void)justifiers;
+}
+
+
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
-    readfile(argv[1], ROM);
-    if (!mfb_open("sega", 320, 224, 3))
+    //readfile(argv[1], ROM);
+    if (!mfb_open("sfc", SNES_WIDTH, SNES_HEIGHT, 3))
         return 0;
-    // CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+    CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 #else
     overclock();
 
@@ -633,12 +661,42 @@ int main(int argc, char** argv) {
     filebrowser(HOME_DIR, "bin,md,gen,smd");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
-    set_rom((unsigned char *)ROM);
-    vdp_set_buffers((unsigned char *)SCREEN);
+    Settings.CyclesPercentage = 100;
+    Settings.H_Max = SNES_CYCLES_PER_SCANLINE;
+    Settings.FrameTimePAL = 20000;
+    Settings.FrameTimeNTSC = 16667;
+    Settings.ControllerOption = SNES_JOYPAD;
+    Settings.HBlankStart = (256 * Settings.H_Max) / SNES_HCOUNTER_MAX;
+    Settings.SoundPlaybackRate = AUDIO_SAMPLE_RATE;
+    Settings.DisableSoundEcho = false;
+    Settings.InterpolatedSound = true;
 
+    if (!S9xInitDisplay())
+        printf("Display init failed!");
+
+    if (!S9xInitMemory())
+        printf("Memory init failed!");
+
+    if (!S9xInitAPU())
+        printf("APU init failed!");
+
+    if (!S9xInitSound(0, 0))
+        printf("Sound init failed!");
+
+    if (!S9xInitGFX())
+        printf("Graphics init failed!");
+
+    if (!LoadROM(argv[1]))
+        printf("ROM loading failed!");
+
+    S9xSetPlaybackRate(Settings.SoundPlaybackRate);
     while (!reboot) {
-        get_buttons();
-        frame();
+        // IPPU.RenderThisFrame = true;
+        // GFX.Screen = (uint8_t *)SCREEN;
+
+        S9xMainLoop();
+        // S9xMixSamples(mixbuffer, AUDIO_BUFFER_LENGTH << 1);
+        S9xMixSamplesLowPass(mixbuffer, AUDIO_BUFFER_LENGTH << 1, AUDIO_LOW_PASS_RANGE);
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
