@@ -4,18 +4,21 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
+#include <windows.h>
 #include <bits/locale_classes.h>
 
-#include <windows.h>
+
 extern "C" {
 #include <gw/gw_sys/gw_system.h>
 #include <gw/gw_sys/gw_romloader.h>
+#include <gw/rom_manager.h>
 }
+size_t filesize = 0;
+#define AUDIO_SAMPLE_RATE GW_AUDIO_FREQ
+#define AUDIO_BUFFER_LENGTH GW_AUDIO_BUFFER_LENGTH
 
 unsigned char *ROM_DATA;
 unsigned int ROM_DATA_LENGTH;
-
-size_t filesize = 0;
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 uint8_t ROM[0x400000];
@@ -586,43 +589,69 @@ static void gw_check_time()
         gw_system_set_time(time);
     }
 }
-// Function to play PCM audio buffer
-void PlayAudioBuffer(char* buffer, int bufferSize) {
-    WAVEFORMATEX waveFormat;
-    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-    waveFormat.nChannels = 1;
-    waveFormat.nSamplesPerSec = GW_AUDIO_FREQ / 2;
-    waveFormat.wBitsPerSample = 16;
-    waveFormat.nBlockAlign = waveFormat.nChannels * waveFormat.wBitsPerSample / 8;
-    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
-    waveFormat.cbSize = 0;
+
+DWORD WINAPI SoundThread(LPVOID lpParam) {
+    WAVEHDR waveHeaders[4];
+
+    WAVEFORMATEX format = { 0 };
+    format.wFormatTag = WAVE_FORMAT_PCM;
+    format.nChannels = 2;
+    format.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
+    format.wBitsPerSample = 16;
+    format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
+    format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+
+    HANDLE waveEvent = CreateEvent(NULL, 1,0, NULL);
 
     HWAVEOUT hWaveOut;
-    waveOutOpen(&hWaveOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
+    waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
-    WAVEHDR waveHeader;
-    waveHeader.lpData = buffer;
-    waveHeader.dwBufferLength = bufferSize;
-    waveHeader.dwBytesRecorded = 0;
-    waveHeader.dwUser = 0;
-    waveHeader.dwFlags = 0;
-    waveHeader.dwLoops = 0;
-    waveOutPrepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
-    waveOutWrite(hWaveOut, &waveHeader, sizeof(WAVEHDR));
-
-    // Wait until audio finishes playing
-    while (!(waveHeader.dwFlags & WHDR_DONE)) {
-        Sleep(1);
+    for (size_t i = 0; i < 4; i++) {
+        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2];
+        waveHeaders[i] = (WAVEHDR) {
+            .lpData = (char*)audio_buffers[i],
+            .dwBufferLength = AUDIO_BUFFER_LENGTH * 4,
+        };
+        waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
+        waveHeaders[i].dwFlags |= WHDR_DONE;
     }
+    WAVEHDR* currentHeader = waveHeaders;
 
-    waveOutUnprepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
-    waveOutClose(hWaveOut);
+    while (true) {
+        if (WaitForSingleObject(waveEvent, INFINITE)) {
+            fprintf(stderr, "Failed to wait for event.\n");
+            return 1;
+        }
+
+        if (!ResetEvent(waveEvent)) {
+            fprintf(stderr, "Failed to reset event.\n");
+            return 1;
+        }
+
+        // Wait until audio finishes playing
+        while (currentHeader->dwFlags & WHDR_DONE) {
+            short * ptr = (short *)currentHeader->lpData;
+            for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
+            {
+                *ptr++ = gw_audio_buffer[i] << 13;
+                *ptr++ = gw_audio_buffer[i] << 13;
+            }
+            gw_audio_buffer_copied = true;
+            //memcpy(currentHeader->lpData, gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH * 2);
+            //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
+            waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
+
+            currentHeader++;
+            if (currentHeader == waveHeaders + 4) { currentHeader = waveHeaders; }
+        }
+    }
+    return 0;
 }
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-    if (!mfb_open("pce", 320, 240, 3))
+    if (!mfb_open("gnw", 320, 240, 4))
         return 0;
 #else
     overclock();
@@ -656,7 +685,7 @@ int main(int argc, char** argv) {
     gw_system_start();
     gw_system_reset();
 
-
+    CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
     while (!reboot) {
         gw_check_time();
 #if !PICO_ON_DEVICE
@@ -669,7 +698,7 @@ int main(int argc, char** argv) {
         // so make sure the previous frame is done sending before queuing a new one
             gw_system_blit((unsigned short *)SCREEN);
 
-        if (mfb_update(SCREEN, 0) == -1)
+        if (mfb_update(SCREEN, GW_REFRESH_RATE) == -1)
             reboot = true;
 #else
         sleep_ms(33);
@@ -677,13 +706,6 @@ int main(int argc, char** argv) {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
         #endif
-        /* copy audio samples for DMA */
-        char mixbuffer[GW_AUDIO_BUFFER_LENGTH];
-        for (size_t i = 0; i < GW_AUDIO_BUFFER_LENGTH; i++)
-        {
-            mixbuffer[i] =gw_audio_buffer[i];
-        }
-        PlayAudioBuffer((char *)gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH);
 
     }
     reboot = false;
