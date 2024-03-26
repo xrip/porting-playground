@@ -165,7 +165,11 @@ else()
 endif ()
 
 #pico_enable_stdio_uart(${PROJECT_NAME} 0)
-
+target_compile_options(${PROJECT_NAME} PRIVATE
+        -DRIGHTSHIFT_IS_SAR
+        -DFAST_LSB_WORD_ACCESS
+        -DNO_ZERO_LUT
+)
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 
 

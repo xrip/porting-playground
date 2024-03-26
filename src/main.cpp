@@ -110,7 +110,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
         while (currentHeader->dwFlags & WHDR_DONE) {
             unsigned short * ptr = (unsigned short *)currentHeader->lpData;
             memcpy(currentHeader->lpData, mixbuffer, AUDIO_BUFFER_LENGTH*4);
-            // for (size_t i = 0; i < AUDIO_BUFFER_LENGTH*2; i++) {
+            // for (size_t i = 0; i < AUDIO_BUFFER_LENGTH*4; i++) {
                 // *ptr++ = mixbuffer[i];
             // }
             //memcpy(currentHeader->lpData, gw_audio_buffer, GW_AUDIO_BUFFER_LENGTH * 2);
@@ -699,7 +699,7 @@ int main(int argc, char** argv) {
         // S9xMixSamples(mixbuffer, AUDIO_BUFFER_LENGTH << 1);
         S9xMixSamplesLowPass(mixbuffer, AUDIO_BUFFER_LENGTH << 1, AUDIO_LOW_PASS_RANGE);
 #if !PICO_ON_DEVICE
-        if (mfb_update(SCREEN, 60) == -1)
+        if (mfb_update(SCREEN, Settings.PAL ? 50 : 60) == -1)
             reboot = true;
 #else
         graphics_set_buffer((uint8_t *)SCREEN, screen_width, screen_height);
