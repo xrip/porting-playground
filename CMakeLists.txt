@@ -55,7 +55,7 @@ endforeach()
 message(STATUS "")
 
 
-add_executable(${PROJECT_NAME} ${SRC})
+add_executable(${PROJECT_NAME} src/main.c src/WinMiniFB.c)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
 if (PICO_PLATFORM STREQUAL "host")
@@ -157,6 +157,8 @@ else()
             TFT_DATA_PIN=12
             TFT_CLK_PIN=13
             LSB_FIRST=1
+            SOUND=1
+            EMCCHACK=1
 
     )
     pico_add_extra_outputs(${PROJECT_NAME})

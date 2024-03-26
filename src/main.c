@@ -2,19 +2,23 @@
 /* See LICENSE file for license details */
 
 /* Standard library includes */
-#include <cstdio>
-#include <cstdint>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 
+#include "MiniFB.h"
+#include "snes.h"
 
+#include "65816.c"
+    //#include "dsp.c"
+#include "io.c"
 
-extern "C" {
-#include "snes9x/snes9x.h"
-#include <snes9x/apu.h>
-#include <snes9x/display.h>
-#include <snes9x/gfx.h>
-#include <snes9x/cpuexec.h>
-#include <snes9x/soundux.h>
-}
+#include "ppu.c"
+    //#include "spc.c"
+#include "exec.c"
+#include "native.c"
+
 #define AUDIO_SAMPLE_RATE (32040)
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
 #define AUDIO_LOW_PASS_RANGE ((60 * 65536) / 100)
@@ -23,10 +27,10 @@ int16_t mixbuffer[AUDIO_BUFFER_LENGTH*2];
 size_t filesize = 0;
 #if !PICO_ON_DEVICE
 #include <windows.h>
-#include <bits/locale_classes.h>
 #include "MiniFB.h"
+
 uint8_t ROM[0x400000];
-uint16_t SCREEN[SNES_HEIGHT_EXTENDED][SNES_WIDTH];
+uint32_t bitmap[256*288];
 
 #else
 #include <hardware/clocks.h>
@@ -65,7 +69,7 @@ void readfile(const char* pathname, uint8_t* dst) {
     fread(dst, sizeof(uint8_t), size, file);
 }
 
-static uint8_t * key_status  = (uint8_t *)mfb_keystatus();
+char * key_status;
 
 
 DWORD WINAPI SoundThread(LPVOID lpParam) {
@@ -553,23 +557,9 @@ void filebrowser(const char pathname[256], const char executables[11]) {
 
 #endif
 
-bool S9xInitDisplay(void)
-{
-    GFX.Pitch = SNES_WIDTH * 2;
-    GFX.ZPitch = SNES_WIDTH;
-    GFX.Screen = (uint8_t*)SCREEN;
-    GFX.SubScreen = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
-    GFX.ZBuffer = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
-    GFX.SubZBuffer = (uint8_t*)malloc( GFX.Pitch * SNES_HEIGHT_EXTENDED );
-    return GFX.Screen && GFX.SubScreen && GFX.ZBuffer && GFX.SubZBuffer;
-}
-
-void S9xDeinitDisplay(void)
-{
-}
-
 uint32_t S9xReadJoypad(int32_t port)
 {
+    uint32_t joypad = 0;
     if (port != 0)
         return 0;
 /*
@@ -581,8 +571,7 @@ uint32_t S9xReadJoypad(int32_t port)
     if (key_status['X'])      buttons |= JOY_B;
     if (key_status[0x0d])  buttons |= JOY_RUN;
     if (key_status[0x20]) buttons |= JOY_SELECT;
-    */
-    uint32_t joypad = 0;
+
 
     joypad |= key_status[0x0d] ? SNES_START_MASK : 0;
     joypad |= key_status[0x20] ? SNES_SELECT_MASK : 0;
@@ -606,36 +595,33 @@ uint32_t S9xReadJoypad(int32_t port)
         // key_status[0x27] << SNES_RIGHT_MASK |
         // key_status[0x26] << SNES_UP_MASK |
         // key_status[0x86] << SNES_DOWN_MASK;
-
+    */
     return joypad;
 }
-
-bool S9xReadMousePosition(int32_t which1, int32_t *x, int32_t *y, uint32_t *buttons)
-{
-    return false;
+static int speed_count = 1;
+int spcemu, palf;
+int reboot_emulator(char *romfilename) {
+    if (loadsmc(romfilename) == -1) {
+        printf("can not find rom file %s\n", romfilename);
+        exit(1);
+        return 0;
+    }
+    makeopcodetable();
+    makeromtable();
+    reset65816();
+    //resetppu();
+#ifdef SOUND
+    resetspc();
+#endif
+    initppu();
+    speed_count = 0;
+    return palf;
 }
-
-bool S9xReadSuperScopePosition(int32_t *x, int32_t *y, uint32_t *buttons)
-{
-    return false;
-}
-
-bool JustifierOffscreen(void)
-{
-    return true;
-}
-
-void JustifierButtons(uint32_t *justifiers)
-{
-    (void)justifiers;
-}
-
-
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
-
-    if (!mfb_open("sfc", SNES_WIDTH, SNES_HEIGHT, 5))
+    key_status  =mfb_keystatus();
+    if (!mfb_open("sfc", 288, 256, 4))
         return 0;
     CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 #else
@@ -660,51 +646,28 @@ int main(int argc, char** argv) {
     filebrowser(HOME_DIR, "bin,md,gen,smd");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
-    Settings.CyclesPercentage = 100;
-    Settings.H_Max = SNES_CYCLES_PER_SCANLINE;
-    Settings.FrameTimePAL = 20000;
-    Settings.FrameTimeNTSC = 16667;
-    Settings.ControllerOption = SNES_JOYPAD;
-    Settings.HBlankStart = (256 * Settings.H_Max) / SNES_HCOUNTER_MAX;
-    Settings.SoundPlaybackRate = AUDIO_SAMPLE_RATE;
-    Settings.DisableSoundEcho = false;
-    Settings.InterpolatedSound = true;
+    int fps, end_loop;
+    spcemu = 0;
+    native_hardware_init(spcemu);
+    reboot_emulator(argv[1]);
+    printf("palf=%d\n", palf);
 
-    if (!S9xInitDisplay())
-        printf("Display init failed!");
-
-    if (!S9xInitMemory())
-        printf("Memory init failed!");
-
-    if (!S9xInitAPU())
-        printf("APU init failed!");
-
-    if (!S9xInitSound(0, 0))
-        printf("Sound init failed!");
-
-    if (!S9xInitGFX())
-        printf("Graphics init failed!");
-
-    // readfile(argv[1], Memory.ROM);
-    // Memory.ROM_Size = filesize;
-    if (!LoadROM(argv[1]))
-        printf("ROM loading failed!");
-
-    S9xSetPlaybackRate(Settings.SoundPlaybackRate);
     while (!reboot) {
-        // IPPU.RenderThisFrame = true;
-        // GFX.Screen = (uint8_t *)SCREEN;
-
-        S9xMainLoop();
-        // S9xMixSamples(mixbuffer, AUDIO_BUFFER_LENGTH << 1);
-        S9xMixSamplesLowPass(mixbuffer, AUDIO_BUFFER_LENGTH << 1, AUDIO_LOW_PASS_RANGE);
 #if !PICO_ON_DEVICE
-        if (mfb_update(SCREEN, Settings.PAL ? 50 : 60) == -1)
+        if (mfb_update(bitmap,  60) == -1)
             reboot = true;
 #else
         graphics_set_buffer((uint8_t *)SCREEN, screen_width, screen_height);
         graphics_set_offset(screen_width != 320 ? 32 : 0, screen_height != 240 ? 8 : 0);
 #endif
+        //if(!limit_fps)
+        {
+            mainloop(palf ? 312 : 262);
+            vbl = 0;
+            //dumpregs();
+        }
+        renderscreen();
+        UPDATE_SOUND;
 
     }
     reboot = false;

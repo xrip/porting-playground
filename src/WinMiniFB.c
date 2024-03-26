@@ -104,14 +104,17 @@ int mfb_open(const char* title, int width, int height, int scale) {
     s_bitmapInfo = (BITMAPINFO *)calloc(1, sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 3);
     s_bitmapInfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     s_bitmapInfo->bmiHeader.biPlanes = 1;
-    s_bitmapInfo->bmiHeader.biBitCount = 16;
+    s_bitmapInfo->bmiHeader.biBitCount = 32;
     s_bitmapInfo->bmiHeader.biCompression = BI_BITFIELDS;
     s_bitmapInfo->bmiHeader.biWidth = width;
     s_bitmapInfo->bmiHeader.biHeight = -height;
 
-    ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xF800;
-    ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x07E0;
-    ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
+    // ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xF800;
+    // ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x07E0;
+    // ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
+    ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0x001F;
+    ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x03E0;
+    ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x7c00;
     s_hdc = GetDC(s_wnd);
 
     return 1;
