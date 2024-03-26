@@ -11,9 +11,12 @@
 #include "snes.h"
 
 #include "65816.c"
+#ifdef SOUND
 #include "dsp.c"
-#include "io.c"
 #include "spc.c"
+#endif
+#include "io.c"
+
 #include "ppu.c"
 
 #include "exec.c"
@@ -23,8 +26,9 @@
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
 // #define AUDIO_BUFFER_LENGTH 533
 #define AUDIO_LOW_PASS_RANGE ((60 * 65536) / 100)
+#ifdef SOUND
 extern unsigned short mixbuffer[533];
-
+#endif
 size_t filesize = 0;
 #if !PICO_ON_DEVICE
 #include <windows.h>
@@ -72,7 +76,7 @@ void readfile(const char* pathname, uint8_t* dst) {
 
 char * key_status;
 
-
+#ifdef SOUND
 DWORD WINAPI SoundThread(LPVOID lpParam) {
     WAVEHDR waveHeaders[4];
 
@@ -130,6 +134,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     }
     return 0;
 }
+#endif
 #else
 typedef struct __attribute__((__packed__)) {
     bool a: 1;
@@ -625,7 +630,9 @@ int main(int argc, char** argv) {
     key_status  =mfb_keystatus();
     if (!mfb_open("sfc", 288, 256, 4))
         return 0;
+#ifdef SOUND
     CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+#endif
 #else
     overclock();
 
@@ -651,11 +658,10 @@ int main(int argc, char** argv) {
     spcemu = 1;
     native_hardware_init(spcemu);
     reboot_emulator(argv[1]);
-    printf("palf=%d\n", palf);
 
     while (!reboot) {
 #if !PICO_ON_DEVICE
-        if (mfb_update(bitmap,  60) == -1)
+        if (mfb_update(bitmap,  palf ? 50 : 60) == -1)
             reboot = true;
 #else
         graphics_set_buffer((uint8_t *)SCREEN, screen_width, screen_height);
@@ -668,7 +674,9 @@ int main(int argc, char** argv) {
             //dumpregs();
         }
         renderscreen();
+#ifdef SOUND
         updatesound();
+#endif
 
     }
     reboot = false;

@@ -169,7 +169,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
         -DRIGHTSHIFT_IS_SAR
         -DFAST_LSB_WORD_ACCESS
         -DNO_ZERO_LUT
-        -DSOUND
+#        -DSOUND
 )
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 
