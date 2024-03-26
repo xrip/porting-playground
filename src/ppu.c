@@ -522,7 +522,7 @@ void writeppu(unsigned short addr, unsigned char val) {
         case 0x2147:
 //                if ((pc>0x9615)&&(pc<0x963F)) printf("Write %04X %02X\n",addr,val);
 #ifdef SOUND
-                                                                                                                                    if (spcemu) write214x(addr&0x2143,val);
+        if (spcemu) write214x(addr&0x2143,val);
         else
 #endif
             setzf = 0;

@@ -157,8 +157,6 @@ else()
             TFT_DATA_PIN=12
             TFT_CLK_PIN=13
             LSB_FIRST=1
-            SOUND=1
-            EMCCHACK=1
 
     )
     pico_add_extra_outputs(${PROJECT_NAME})
@@ -171,6 +169,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
         -DRIGHTSHIFT_IS_SAR
         -DFAST_LSB_WORD_ACCESS
         -DNO_ZERO_LUT
+        -DSOUND
 )
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 

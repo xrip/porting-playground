@@ -11,18 +11,19 @@
 #include "snes.h"
 
 #include "65816.c"
-    //#include "dsp.c"
+#include "dsp.c"
 #include "io.c"
-
+#include "spc.c"
 #include "ppu.c"
-    //#include "spc.c"
+
 #include "exec.c"
 #include "native.c"
 
 #define AUDIO_SAMPLE_RATE (32040)
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
+// #define AUDIO_BUFFER_LENGTH 533
 #define AUDIO_LOW_PASS_RANGE ((60 * 65536) / 100)
-int16_t mixbuffer[AUDIO_BUFFER_LENGTH*2];
+extern unsigned short mixbuffer[533];
 
 size_t filesize = 0;
 #if !PICO_ON_DEVICE
@@ -77,7 +78,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
     WAVEFORMATEX format = { 0 };
     format.wFormatTag = WAVE_FORMAT_PCM;
-    format.nChannels = 2;
+    format.nChannels = 1;
     format.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
     format.wBitsPerSample = 16;
     format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
@@ -89,7 +90,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
     for (size_t i = 0; i < 4; i++) {
-        int16_t audio_buffers[4][AUDIO_SAMPLE_RATE*2] = { 0 };
+        int16_t audio_buffers[4][AUDIO_BUFFER_LENGTH*2] = { 0 };
         waveHeaders[i] = (WAVEHDR) {
             .lpData = (char*)audio_buffers[i],
             .dwBufferLength = AUDIO_BUFFER_LENGTH * 4,
@@ -112,8 +113,9 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
         while (currentHeader->dwFlags & WHDR_DONE) {
+            // UPDATE_SOUND;
             unsigned short * ptr = (unsigned short *)currentHeader->lpData;
-            memcpy(currentHeader->lpData, mixbuffer, AUDIO_BUFFER_LENGTH*4);
+            memcpy(currentHeader->lpData, mixbuffer, AUDIO_BUFFER_LENGTH*2);
             // for (size_t i = 0; i < AUDIO_BUFFER_LENGTH*4; i++) {
                 // *ptr++ = mixbuffer[i];
             // }
@@ -646,8 +648,7 @@ int main(int argc, char** argv) {
     filebrowser(HOME_DIR, "bin,md,gen,smd");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
-    int fps, end_loop;
-    spcemu = 0;
+    spcemu = 1;
     native_hardware_init(spcemu);
     reboot_emulator(argv[1]);
     printf("palf=%d\n", palf);
@@ -667,7 +668,7 @@ int main(int argc, char** argv) {
             //dumpregs();
         }
         renderscreen();
-        UPDATE_SOUND;
+        updatesound();
 
     }
     reboot = false;

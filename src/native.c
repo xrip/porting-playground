@@ -48,7 +48,7 @@ void native_hardware_init(int spcemu) {
 #endif
 #ifdef SOUND
     if (spcemu) initsound();
-        if (spcemu) install_int_ex(soundcheck,BPS_TO_TIMER(500));
+        // if (spcemu) install_int_ex(soundcheck,BPS_TO_TIMER(500));
 #endif
 }
 

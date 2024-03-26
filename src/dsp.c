@@ -328,25 +328,25 @@ void decodesamples()
         }
 }
 
-AUDIOSTREAM *as;
+// AUDIOSTREAM *as;
 FILE *sf;
 
 void initsound()
 {
-        install_sound(DIGI_AUTODETECT,MIDI_NONE,0);
-        as=play_audio_stream(533,16,0,30000,255,128);
+        // install_sound(DIGI_AUTODETECT,MIDI_NONE,0);
+        // as=play_audio_stream(533,16,0,30000,255,128);
 ///        sf=fopen("sound.pcm","wb");
 }
 int decodedelay2=5;
+unsigned short mixbuffer[533]; // PAL?
 void updatesound()
 {
-        unsigned short *buf;
+
         int c,d;
-        uint32 templ;
-        
-        buf=0;
-              buf=(unsigned short *)get_audio_stream_buffer(as);
-        if (buf)
+        // uint32 templ;
+        // printf("sound\r\n");
+              // buf=(unsigned short *)get_audio_stream_buffer(as);
+        if (1)
         {
                 decodesamples();
                 for (c=0;c<8;c++)
@@ -393,7 +393,7 @@ void updatesound()
                 }
                 for (c=0;c<533;c++)
                 {
-                        buf[c]=0;
+                        mixbuffer[c]=0;
                         for (d=0;d<8;d++)
                         {
                                 if (keyed[d] && samp[sampsamp[d]][sloop[d]])
@@ -403,7 +403,7 @@ void updatesound()
                                         if (templ&0x8000) templ|=0xFFFF0000;
                                         templ*=(realvol[d]);//sampvol[d][2];
                                         templ>>=8;
-                                        buf[c]+=(templ&0xFFFF);
+                                        mixbuffer[c]+=(templ&0xFFFF);
                                         samppos[d]+=sampf[d];
                                         if ((samppos[d]>>16)>=samplen[sampsamp[d]][sloop[d]])
                                         {
@@ -420,8 +420,8 @@ void updatesound()
 
                 }
 
-                for (c=0;c<533;c++) buf[c]^=0x8000;
-                free_audio_stream_buffer(as);
+                // for (c=0;c<533;c++) mixbuffer[c]^=0x8000;
+                // free_audio_stream_buffer(as);
                 for (c=0;c<8;c++) dspregs[(c<<4)|8]=voicelev[c]*256;
 
         }

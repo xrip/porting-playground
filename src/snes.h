@@ -148,7 +148,7 @@ uint32_t *native_set_joypad_state(uint32_t state) __attribute__((used));
 uint32_t native_joypad_state(int num);
 
 #ifdef SOUND
-#define UPDATE_SOUND  if (soundupdate && spcemu)  { soundupdate=0; updatesound();}
+#define UPDATE_SOUND  if (1 && spcemu)  { soundupdate=0; updatesound();}
 #else
 #define UPDATE_SOUND
 #endif
