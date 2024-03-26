@@ -630,7 +630,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 3))
+    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 4))
         return 0;
 #else
     overclock();
