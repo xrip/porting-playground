@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include <stdlib.h>
+#include <stdint.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +66,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+extern uint32_t watara_palette[4];
 int mfb_open(const char* title, int width, int height, int scale) {
     RECT rect = { 0 };
 
@@ -76,16 +77,16 @@ int mfb_open(const char* title, int width, int height, int scale) {
 
     RegisterClass(&s_wc);
 
-    rect.right = 256 * scale;
-    rect.bottom = 240 * scale;
+    rect.right = width * scale;
+    rect.bottom = height * scale;
 
     AdjustWindowRect(&rect, WS_POPUP | WS_SYSMENU | WS_CAPTION, 0);
 
     rect.right -= rect.left;
     rect.bottom -= rect.top;
 
-    s_width = 256;
-    s_height = 240;
+    s_width = width;
+    s_height = height;
     s_scale = scale;
 
     s_wnd = CreateWindowEx(0,
@@ -111,7 +112,7 @@ int mfb_open(const char* title, int width, int height, int scale) {
     s_bitmapInfo->bmiHeader.biSizeImage = 0;
     // s_bitmapInfo->bmiHeader.biXPelsPerMeter = 14173;
     // s_bitmapInfo->bmiHeader.biYPelsPerMeter = 14173;
-    s_bitmapInfo->bmiHeader.biClrUsed = 256;
+    s_bitmapInfo->bmiHeader.biClrUsed = 4;
     s_bitmapInfo->bmiHeader.biClrImportant = 1;
 
     RGBQUAD* palette = &s_bitmapInfo->bmiColors[0];
@@ -123,12 +124,13 @@ int mfb_open(const char* title, int width, int height, int scale) {
     //     rgb.rgbBlue =  ~i;
     //     palette[i] = rgb;
     // }
-/*    for (int i = 0; i < 256; i++) {
-            uint8_t *ptr = &palette[i];
-            *ptr++ = ((i & 0x03) << 2) * 16;
-            *ptr++ = ((i & 0xe0) >> 4) * 16;
-            *ptr = ((i & 0x1C) >> 1) * 16;
-    }*/
+    for (int i = 0; i < 4; i++) {
+            uint32_t *ptr = &palette[i];
+            *ptr = watara_palette[i];
+//            *ptr++ = ((i & 0x03) << 2) * 16;
+//            *ptr++ = ((i & 0xe0) >> 4) * 16;
+//            *ptr = ((i & 0x1C) >> 1) * 16;
+    }
 
 
 

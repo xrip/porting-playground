@@ -8,9 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static uint8 *lowerRam;
-static uint8 *upperRam;
-static uint8 *regs;
+static uint8 lowerRam[0x2000];
+static uint8 upperRam[0x2000];
+static uint8 regs[0x2000];
 static const uint8 *programRom;
 static const uint8 *lowerRomBank;
 static const uint8 *upperRomBank;
@@ -44,9 +44,9 @@ void memorymap_set_timer_shot(void)
 
 void memorymap_init(void)
 {
-    lowerRam = (uint8*)malloc(0x2000);
-    upperRam = (uint8*)malloc(0x2000);
-    regs     = (uint8*)malloc(0x2000);
+//    lowerRam = (uint8*)malloc(0x2000);
+//    upperRam = (uint8*)malloc(0x2000);
+//    regs     = (uint8*)malloc(0x2000);
 }
 
 void memorymap_reset(void)
@@ -74,9 +74,9 @@ void memorymap_reset(void)
 
 void memorymap_done(void)
 {
-    free(lowerRam); lowerRam = NULL;
-    free(upperRam); upperRam = NULL;
-    free(regs);     regs     = NULL;
+//    free(lowerRam); lowerRam = NULL;
+//    free(upperRam); upperRam = NULL;
+//    free(regs);     regs     = NULL;
 }
 
 uint8 memorymap_registers_read(uint32 Addr)

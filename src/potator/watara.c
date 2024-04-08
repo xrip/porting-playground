@@ -69,7 +69,7 @@ BOOL supervision_load(const uint8 *rom, uint32 romSize)
     return TRUE;
 }
 
-void supervision_exec_ex(uint16 *backbuffer, int16 backbufferWidth, BOOL skipFrame)
+void supervision_exec_ex(uint8 *backbuffer, int16 backbufferWidth, BOOL skipFrame)
 {
     uint32 i, scan;
     uint8 *regs = memorymap_getRegisters();

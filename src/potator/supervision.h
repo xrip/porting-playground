@@ -23,7 +23,7 @@ extern "C" {
 /*!
  * \sa supervision_set_map_func()
  */
-typedef uint16 (*SV_MapRGBFunc)(uint8 r, uint8 g, uint8 b);
+typedef uint32 (*SV_MapRGBFunc)(uint8 r, uint8 g, uint8 b);
 /*!
  * \sa supervision_set_color_scheme()
  */
@@ -77,7 +77,7 @@ void supervision_done(void);
  * \return TRUE - success, FALSE - error
  */
 BOOL supervision_load(const uint8 *rom, uint32 romSize);
-void supervision_exec_ex(uint16 *backbuffer, int16 backbufferWidth, BOOL skipFrame);
+void supervision_exec_ex(uint8 *backbuffer, int16 backbufferWidth, BOOL skipFrame);
 
 /*!
  * \param data Bits 0-7: Right, Left, Down, Up, B, A, Select, Start.

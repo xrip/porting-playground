@@ -8,7 +8,7 @@
 // RGB555 or RGBA5551
 #define RGB555(R,G,B) ((((int)(B))<<10)|(((int)(G))<<5)|(((int)(R)))|(1<<15))
 
-static uint16 rgb555(uint8 r, uint8 g, uint8 b)
+static uint32 rgb555(uint8 r, uint8 g, uint8 b)
 {
     return RGB555(r >> 3, g >> 3, b >> 3);
 }
@@ -192,15 +192,15 @@ static const uint8 palettes[SV_COLOR_SCHEME_COUNT][12] = {
 },
 };
 
-static uint16 *palette;
+uint32 watara_palette[4];
 static int paletteIndex;
 
 #define SB_MAX (SV_GHOSTING_MAX + 1)
 static int ghostCount = 0;
-static uint8 *screenBuffers[SB_MAX];
+static uint8 screenBuffers[SB_MAX][SV_H * SV_W / 4];
 static uint8 screenBufferInnerX[SB_MAX];
 
-static void add_ghosting(uint32 scanline, uint16 *backbuffer, uint8 innerx, uint8 size)
+static void add_ghosting(uint32 scanline, uint8 *backbuffer, uint8 innerx, uint8 size)
 {
     static int curSB = 0;
     static int lineCount = 0;
@@ -242,7 +242,7 @@ static void add_ghosting(uint32 scanline, uint16 *backbuffer, uint8 innerx, uint
 
 void gpu_init(void)
 {
-    palette = (uint16*)malloc(4 * sizeof(int16));
+ //   watara_palette = (uint32*)malloc(4 * sizeof(int32));
 }
 
 void gpu_reset(void)
@@ -254,7 +254,7 @@ void gpu_reset(void)
 
 void gpu_done(void)
 {
-    free(palette); palette = NULL;
+//    free(watara_palette); watara_palette = NULL;
     gpu_set_ghosting(0);
 }
 
@@ -264,21 +264,21 @@ void gpu_set_map_func(SV_MapRGBFunc func)
     if (mapRGB == NULL)
         mapRGB = rgb555;
 }
-
+#define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 void gpu_set_color_scheme(int colorScheme)
 {
     int i;
     if (colorScheme < 0 || colorScheme >= SV_COLOR_SCHEME_COUNT)
         return;
     for (i = 0; i < 4; i++) {
-        palette[i] = mapRGB(palettes[colorScheme][i * 3 + 0],
-                            palettes[colorScheme][i * 3 + 1],
-                            palettes[colorScheme][i * 3 + 2]);
+        watara_palette[i] = RGB888(palettes[colorScheme][i * 3 + 0],
+                                   palettes[colorScheme][i * 3 + 1],
+                                   palettes[colorScheme][i * 3 + 2]);
     }
     paletteIndex = colorScheme;
 }
 
-void gpu_render_scanline(uint32 scanline, uint16 *backbuffer, uint8 innerx, uint8 size)
+void gpu_render_scanline(uint32 scanline, uint8 *backbuffer, uint8 innerx, uint8 size)
 {
     uint8 *vram_line = memorymap_getUpperRamPointer() + scanline;
     uint8 x, j = innerx, b = 0;
@@ -293,7 +293,8 @@ void gpu_render_scanline(uint32 scanline, uint16 *backbuffer, uint8 innerx, uint
     {
         if (!(j & 3))
             b = *(vram_line++);
-        backbuffer[x] = palette[b & 3];
+//        backbuffer[x] = watara_palette[b & 3];
+        backbuffer[x] = b & 3;
         b >>= 2;
     }
     if (ghostCount != 0)
@@ -313,20 +314,20 @@ void gpu_set_ghosting(int frameCount)
     if (ghostCount != 0) {
         if (screenBuffers[0] == NULL)
 	{
-            for (i = 0; i < SB_MAX; i++)
-	    {
-                screenBuffers[i] = malloc(SV_H * SV_W / 4);
-                if (screenBuffers[i] == NULL)
-                    return;
-            }
+//            for (i = 0; i < SB_MAX; i++)
+//	    {
+//                screenBuffers[i] = malloc(SV_H * SV_W / 4);
+//                if (screenBuffers[i] == NULL)
+//                    return;
+//            }
         }
         for (i = 0; i < SB_MAX; i++)
             memset(screenBuffers[i], 0, SV_H * SV_W / 4);
     }
     else {
         for (i = 0; i < SB_MAX; i++) {
-            free(screenBuffers[i]);
-            screenBuffers[i] = NULL;
+//            free(screenBuffers[i]);
+//            screenBuffers[i] = NULL;
         }
     }
 }
