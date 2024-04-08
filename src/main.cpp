@@ -4,24 +4,20 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
+#include "lynx/handy.h"
 #include <windows.h>
+static CSystem *lynx = NULL;
 
-
-extern "C" {
-#include <potator/supervision.h>
-#include "potator/sound.h"
-}
 size_t filesize = 0;
-#define AUDIO_SAMPLE_RATE SV_SAMPLE_RATE
+#define AUDIO_SAMPLE_RATE 44100
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
-#define AUDIO_BUFFER_SIZE ((SV_SAMPLE_RATE / 60) << 1)
-
+int16_t AudioBuffer[AUDIO_BUFFER_LENGTH * 2] = { 0 };
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 
 
 uint8_t ROM[0x400000];
-uint8_t SCREEN[SV_H][SV_W];
+uint16_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
 
 #else
 #include <hardware/clocks.h>
@@ -490,19 +486,19 @@ void filebrowser(const char pathname[256], const char executables[11]) {
 
 static void update_input()
 {
-    uint8 controls_state = 0;
+    uint8_t buttons = 0;
 #if !PICO_ON_DEVICE
     uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-    if (key_status[0x25])  controls_state |= 0x02;
-    if (key_status[0x27])  controls_state |= 0x01;
-    if (key_status[0x26])  controls_state |= 0x08;
-    if (key_status[0x28])  controls_state |= 0x04;
-    if (key_status['Z'])   controls_state |= 0x20;
-    if (key_status['X'])   controls_state |= 0x10;
-    if (key_status[0x0d])  controls_state |= 0x80;
-    if (key_status[0x20])  controls_state |= 0x40;
+    if (key_status[0x25]) buttons |= BUTTON_LEFT;
+    if (key_status[0x27]) buttons |= BUTTON_RIGHT;
+    if (key_status[0x26]) buttons |= BUTTON_UP;
+    if (key_status[0x28]) buttons |= BUTTON_DOWN;
+    if (key_status['Z']) buttons |= BUTTON_A;
+    if (key_status['X']) buttons |= BUTTON_B;
+    if (key_status[0x0d]) buttons |= BUTTON_OPT2;
+    if (key_status[0x20]) buttons |= BUTTON_OPT1;
 #endif
-    supervision_set_input(controls_state);
+    lynx->SetButtonData(buttons);
 }
 
 
@@ -523,17 +519,16 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
     for (size_t i = 0; i < 4; i++) {
-        int16_t audio_buffers[4][AUDIO_BUFFER_SIZE*2];
+        int16_t audio_buffers[4][AUDIO_BUFFER_LENGTH*2];
         waveHeaders[i] = (WAVEHDR) {
             .lpData = (char*)audio_buffers[i],
-            .dwBufferLength = AUDIO_BUFFER_SIZE * 2,
+            .dwBufferLength = AUDIO_BUFFER_LENGTH * 2,
         };
         waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
         waveHeaders[i].dwFlags |= WHDR_DONE;
     }
     WAVEHDR* currentHeader = waveHeaders;
 
-    uint8_t buffer[AUDIO_BUFFER_SIZE];
 
     while (true) {
         if (WaitForSingleObject(waveEvent, INFINITE)) {
@@ -548,12 +543,14 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
          while (currentHeader->dwFlags & WHDR_DONE) {
-             auto * ptr = (unsigned short *)currentHeader->lpData;
-             sound_stream_update(buffer, AUDIO_BUFFER_SIZE);
+             memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
+             //             auto * ptr = (unsigned short *)currentHeader->lpData;
+
+//             sound_stream_update(buffer, AUDIO_BUFFER_SIZE);
              //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
              /* Convert from U8 (0 - 45) to S16 */
-             for (unsigned char i : buffer)
-                 *ptr++ = i  << (8 + 1);
+//             for (unsigned char i : AudioBuffer)
+//                 *ptr++ = i  << (8 + 1);
 
 
              waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
@@ -564,12 +561,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     }
     return 0;
 }
-#define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
-static uint32 map_rgb565(uint8 r, uint8 g, uint8 b)
-{
-    return RGB888(b,g,r);
-//    return ((r >> 3) << 11) | ((g >> 3) << 6) | (b >> 3);
-}
+
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
@@ -600,23 +592,19 @@ int main(int argc, char** argv) {
 
 //    supervision_set_ghosting(10);
 
-    supervision_init();
-
-    if (supervision_load(ROM, filesize) ) {
-//        supervision_set_ghosting(2);
-        supervision_set_color_scheme(SV_COLOR_SCHEME_WATAROO);
-        supervision_set_map_func(map_rgb565);
-        if (!mfb_open("watara", SV_W, SV_H, 3))
+        if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 8))
             return 0;
 
-    }
+    lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, AUDIO_SAMPLE_RATE);
     // Create sound thread
     HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
-
+//    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
+    gAudioBuffer = AudioBuffer;
+    gAudioEnabled = true;
+    gPrimaryFrameBuffer = (uint8_t *)SCREEN;
     while (!reboot) {
         update_input();
-        supervision_exec_ex((uint8_t *)SCREEN, SV_W, 0);
-        // for(int x = 0; x <32; x++) graphics_set_palette(x, RGB888(bitmap.pal.color[x][0], bitmap.pal.color[x][1], bitmap.pal.color[x][2]));
+        lynx->UpdateFrame(true);
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
