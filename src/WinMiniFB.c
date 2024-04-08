@@ -108,12 +108,12 @@ int mfb_open(const char* title, int width, int height, int scale) {
     s_bitmapInfo->bmiHeader.biCompression = BI_BITFIELDS;
     s_bitmapInfo->bmiHeader.biWidth = width;
     s_bitmapInfo->bmiHeader.biHeight = -height;
-     ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xf000;
-     ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x0780;
-     ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001e;
-//    ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xF800;
-//    ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x07E0;
-//    ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
+//     ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xf000;
+//     ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x0780;
+//     ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001e;
+    ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xF800;
+    ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x07E0;
+    ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
     s_hdc = GetDC(s_wnd);
 
     return 1;

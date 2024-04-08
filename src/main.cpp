@@ -565,7 +565,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
-    readfile(argv[1], ROM);
+    //readfile(argv[1], ROM);
 
 #else
     overclock();
@@ -591,8 +591,7 @@ int main(int argc, char** argv) {
 #endif
 
 //    supervision_set_ghosting(10);
-
-        if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 8))
+        if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 6))
             return 0;
 
     lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, AUDIO_SAMPLE_RATE);
