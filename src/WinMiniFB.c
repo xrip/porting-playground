@@ -1,4 +1,3 @@
-#include <pce-go/pce-go.h>
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 
@@ -124,12 +123,12 @@ int mfb_open(const char* title, int width, int height, int scale) {
     //     rgb.rgbBlue =  ~i;
     //     palette[i] = rgb;
     // }
-    for (int i = 0; i < 256; i++) {
+/*    for (int i = 0; i < 256; i++) {
             uint8_t *ptr = &palette[i];
             *ptr++ = ((i & 0x03) << 2) * 16;
             *ptr++ = ((i & 0xe0) >> 4) * 16;
             *ptr = ((i & 0x1C) >> 1) * 16;
-    }
+    }*/
 
 
 

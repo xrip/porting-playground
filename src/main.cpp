@@ -8,18 +8,19 @@
 
 
 extern "C" {
-// #include "pce-go/pce-go.h"
-#include <pce-go/pce.h>
-#include <pce-go/psg.h>
+#include <potator/supervision.h>
+#include "potator/sound.h"
 }
 size_t filesize = 0;
-#define AUDIO_SAMPLE_RATE 48000
+#define AUDIO_SAMPLE_RATE SV_SAMPLE_RATE
 #define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
 
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
+
+
 uint8_t ROM[0x400000];
-uint8_t SCREEN[XBUF_HEIGHT][XBUF_WIDTH];
+uint16_t SCREEN[SV_H][SV_W];
 
 #else
 #include <hardware/clocks.h>
@@ -484,95 +485,23 @@ void filebrowser(const char pathname[256], const char executables[11]) {
     }
 }
 #endif
-uint8_t *osd_gfx_framebuffer(int width, int height)
+
+
+static void update_input()
 {
-    //printf("%d x %d\r\n", width, height);
-    return (uint8_t *)SCREEN;
-}
-
-
-void osd_vsync(void)
-{
-    /*static int64_t lasttime, prevtime;
-
-    if (drawFrame)
-    {
-        slowFrame = !rg_display_sync(false);
-        rg_display_submit(currentUpdate, 0);
-        currentUpdate = &updates[currentUpdate == &updates[0]];
-    }
-
-    // See if we need to skip a frame to keep up
-    if (skipFrames == 0)
-    {
-        if (app->frameskip > 0)
-            skipFrames = app->frameskip;
-        else if (drawFrame && slowFrame)
-            skipFrames = 1;
-    }
-    else if (skipFrames > 0)
-    {
-        skipFrames--;
-    }
-
-    int64_t curtime = rg_system_timer();
-    int frameTime = 1000000 / (app->tickRate * app->speed);
-    int sleep = frameTime - (curtime - lasttime);
-
-    if (sleep > frameTime)
-    {
-        RG_LOGE("Our vsync timer seems to have overflowed! (%dus)", sleep);
-    }
-    else if (sleep > 0)
-    {
-        rg_usleep(sleep);
-    }
-    else if (sleep < -(frameTime / 2))
-    {
-        skipFrames++;
-    }
-
-    rg_system_tick(curtime - prevtime);
-
-    prevtime = rg_system_timer();
-    lasttime += frameTime;
-
-    if ((lasttime + frameTime) < prevtime)
-        lasttime = prevtime;
-
-    drawFrame = (skipFrames == 0);*/
-
-}
-
-
-
-
-void osd_input_read(uint8_t joypads[8])
-{
-
-    uint32_t buttons = 0;
-/*
-    'X', // A
-    'Z', // B
-    0x08, // Select
-    0x0D, // Start
-    0x26, // Dpad Up
-    0x28, // Dpad Down
-    0x25, // Dpad Left
-    0x27, // Dpad Right
-*/
+    uint8 controls_state = 0;
 #if !PICO_ON_DEVICE
     uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-    if (key_status[0x25])   buttons |= JOY_LEFT;
-    if (key_status[0x27])  buttons |= JOY_RIGHT;
-    if (key_status[0x26])     buttons |= JOY_UP;
-    if (key_status[0x28])   buttons |= JOY_DOWN;
-    if (key_status['Z'])      buttons |= JOY_A;
-    if (key_status['X'])      buttons |= JOY_B;
-    if (key_status[0x0d])  buttons |= JOY_RUN;
-    if (key_status[0x20]) buttons |= JOY_SELECT;
+    if (key_status[0x25])  controls_state |= 0x02;
+    if (key_status[0x27])  controls_state |= 0x01;
+    if (key_status[0x26])  controls_state |= 0x08;
+    if (key_status[0x28])  controls_state |= 0x04;
+    if (key_status['Z'])   controls_state |= 0x20;
+    if (key_status['X'])   controls_state |= 0x10;
+    if (key_status[0x0d])  controls_state |= 0x80;
+    if (key_status[0x20])  controls_state |= 0x40;
 #endif
-    joypads[0] = buttons;
+    supervision_set_input(controls_state);
 }
 
 
@@ -616,7 +545,8 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
          while (currentHeader->dwFlags & WHDR_DONE) {
-             psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
+             sound_stream_update((uint8_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH);
+             //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
              waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
 
              currentHeader++;
@@ -626,11 +556,15 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     return 0;
 }
 
+static uint16 map_rgb565(uint8 r, uint8 g, uint8 b)
+{
+    return ((r >> 3) << 11) | ((g >> 3) << 6) | (b >> 3);
+}
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 4))
+    if (!mfb_open("pce", SV_W, SV_H, 8))
         return 0;
 #else
     overclock();
@@ -655,20 +589,15 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-    if (!InitPCE(AUDIO_SAMPLE_RATE, true, ROM, filesize)) {
+    supervision_init();
+    supervision_load(ROM, filesize);
+    supervision_set_map_func(map_rgb565);
 
-#if PICO_ON_DEVICE
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-#endif
-    }
     // Create sound thread
     HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 
     while (!reboot) {
-
-            osd_input_read(PCE.Joypad.regs);
-            pce_run();
-            //osd_vsync();
+        supervision_exec_ex((uint16 *)SCREEN, SV_W, 0);
         // for(int x = 0; x <32; x++) graphics_set_palette(x, RGB888(bitmap.pal.color[x][0], bitmap.pal.color[x][1], bitmap.pal.color[x][2]));
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)
