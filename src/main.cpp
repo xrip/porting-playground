@@ -4,9 +4,10 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
-#include "lynx/handy.h"
+extern "C" {
+#include "oswan/ws.h"
+}
 #include <windows.h>
-static CSystem *lynx = NULL;
 
 size_t filesize = 0;
 #define AUDIO_SAMPLE_RATE 44100
@@ -16,8 +17,8 @@ int16_t AudioBuffer[AUDIO_BUFFER_LENGTH * 2] = { 0 };
 #include "MiniFB.h"
 
 
-uint8_t ROM[0x400000];
-uint16_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
+uint8_t ROM[16384 << 10];
+uint16_t SCREEN[144][224];
 
 #else
 #include <hardware/clocks.h>
@@ -489,16 +490,9 @@ static void update_input()
     uint8_t buttons = 0;
 #if !PICO_ON_DEVICE
     uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-    if (key_status[0x25]) buttons |= BUTTON_LEFT;
-    if (key_status[0x27]) buttons |= BUTTON_RIGHT;
-    if (key_status[0x26]) buttons |= BUTTON_UP;
-    if (key_status[0x28]) buttons |= BUTTON_DOWN;
-    if (key_status['Z']) buttons |= BUTTON_A;
-    if (key_status['X']) buttons |= BUTTON_B;
-    if (key_status[0x0d]) buttons |= BUTTON_OPT2;
-    if (key_status[0x20]) buttons |= BUTTON_OPT1;
+
 #endif
-    lynx->SetButtonData(buttons);
+
 }
 
 
@@ -565,7 +559,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
-    //readfile(argv[1], ROM);
+    readfile(argv[1], ROM);
 
 #else
     overclock();
@@ -590,20 +584,22 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-//    supervision_set_ghosting(10);
-        if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 6))
+    ws_init(ROM, filesize);
+    ws_set_system(WS_SYSTEM_COLOR);
+    ws_set_colour_scheme(0);
+    ws_reset();
+
+        if (!mfb_open("oswan", 224, 144, 6))
             return 0;
 
-    lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, AUDIO_SAMPLE_RATE);
-    // Create sound thread
-    HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
-//    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
-    gAudioBuffer = AudioBuffer;
-    gAudioEnabled = true;
-    gPrimaryFrameBuffer = (uint8_t *)SCREEN;
+//    HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+
     while (!reboot) {
         update_input();
-        lynx->UpdateFrame(true);
+
+        for (int i =0; i< 144; i++)
+            ws_executeLine((int16_t*)SCREEN, 1);
+
 #if !PICO_ON_DEVICE
         if (mfb_update(SCREEN, 60) == -1)
             reboot = true;
