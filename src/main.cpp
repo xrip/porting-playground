@@ -9,7 +9,6 @@
 static CSystem *lynx = NULL;
 
 size_t filesize = 0;
-#define AUDIO_SAMPLE_RATE HANDY_AUDIO_SAMPLE_FREQ
 int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
@@ -507,7 +506,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     WAVEFORMATEX format = { 0 };
     format.wFormatTag = WAVE_FORMAT_PCM;
     format.nChannels = 2;
-    format.nSamplesPerSec = AUDIO_SAMPLE_RATE ;
+    format.nSamplesPerSec = HANDY_AUDIO_SAMPLE_FREQ ;
     format.wBitsPerSample = 16;
     format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
     format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
@@ -594,7 +593,7 @@ int main(int argc, char** argv) {
         if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 8))
             return 0;
 
-    lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, AUDIO_SAMPLE_RATE);
+    lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, HANDY_AUDIO_SAMPLE_FREQ);
     // Create sound thread
     HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 //    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
