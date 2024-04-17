@@ -65,7 +65,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+extern unsigned char mapping[256];
 int mfb_open(const char* title, int width, int height, int scale) {
     RECT rect = { 0 };
 
@@ -101,7 +101,36 @@ int mfb_open(const char* title, int width, int height, int scale) {
 
     ShowWindow(s_wnd, SW_NORMAL);
 
-    s_bitmapInfo = (BITMAPINFO *)calloc(1, sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 3);
+    s_bitmapInfo = (BITMAPINFO*)malloc(sizeof(BITMAPINFO) + sizeof(RGBQUAD) * 256);
+    s_bitmapInfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    s_bitmapInfo->bmiHeader.biBitCount = 8;
+    s_bitmapInfo->bmiHeader.biPlanes = 1;
+    s_bitmapInfo->bmiHeader.biWidth = width;
+    s_bitmapInfo->bmiHeader.biHeight = -height;
+    s_bitmapInfo->bmiHeader.biCompression = 0;
+    s_bitmapInfo->bmiHeader.biSizeImage = 0;
+    // s_bitmapInfo->bmiHeader.biXPelsPerMeter = 14173;
+    // s_bitmapInfo->bmiHeader.biYPelsPerMeter = 14173;
+    s_bitmapInfo->bmiHeader.biClrUsed = 256;
+    s_bitmapInfo->bmiHeader.biClrImportant = 1;
+
+    RGBQUAD* palette = &s_bitmapInfo->bmiColors[0];
+    // for (int i = 0; i < 256; ++i)
+    // {
+    //     RGBQUAD rgb = {0};
+    //     rgb.rgbRed =  ~i;
+    //     rgb.rgbGreen =  ~i;
+    //     rgb.rgbBlue =  ~i;
+    //     palette[i] = rgb;
+    // }
+    for (int i = 0; i < 256; i++) {
+        unsigned char *ptr = &palette[i];
+        *ptr++ = ((i & 0x03) << 2) * 16;
+        *ptr++ = ((i & 0x1C) >> 1) * 16;
+        *ptr++ = ((i & 0xe0) >> 4) * 16;
+
+    }
+    /*s_bitmapInfo = (BITMAPINFO *)calloc(1, sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 3);
     s_bitmapInfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     s_bitmapInfo->bmiHeader.biPlanes = 1;
     s_bitmapInfo->bmiHeader.biBitCount = 16;
@@ -113,7 +142,7 @@ int mfb_open(const char* title, int width, int height, int scale) {
      ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001e;
 //    ((DWORD *)s_bitmapInfo->bmiColors)[0] = 0xF800;
 //    ((DWORD *)s_bitmapInfo->bmiColors)[1] = 0x07E0;
-//    ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;
+//    ((DWORD *)s_bitmapInfo->bmiColors)[2] = 0x001F;*/
     s_hdc = GetDC(s_wnd);
 
     return 1;

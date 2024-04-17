@@ -15,7 +15,7 @@ int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
 
 
 uint8_t ROM[0x400000];
-uint16_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
+uint8_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
 
 #else
 #include <hardware/clocks.h>
@@ -560,6 +560,32 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     return 0;
 }
 
+// Define the 8-bit color palette
+uint8_t eightBitPalette[256];
+
+// Function to find the closest color in the 8-bit palette
+uint8_t eightBitPaletteIndex(uint16_t color) {
+    uint8_t closestIndex = 0;
+    int minDistance = 99999; // Initialize with a large value
+
+    // Iterate through the 8-bit palette to find the closest color
+    for (int i = 0; i < 256; i++) {
+        // Calculate distance between colors (using simple Euclidean distance)
+        int rDiff = ((color >> 8) & 0xF) - ((eightBitPalette[i] >> 5) & 0x7);
+        int gDiff = ((color >> 4) & 0xF) - ((eightBitPalette[i] >> 2) & 0x7);
+        int bDiff = (color & 0xF) - (eightBitPalette[i] & 0x3);
+        int distance = rDiff * rDiff + gDiff * gDiff + bDiff * bDiff;
+
+        // Update closest index if found a closer color
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestIndex = i;
+        }
+    }
+    return closestIndex;
+}
+uint8_t mapping[4096];
+uint16_t mColourMap[4096];
 
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
@@ -590,8 +616,6 @@ int main(int argc, char** argv) {
 
 //    supervision_set_ghosting(10);
 
-        if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 8))
-            return 0;
 
     lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, HANDY_AUDIO_SAMPLE_FREQ);
     // Create sound thread
@@ -600,6 +624,15 @@ int main(int argc, char** argv) {
     gAudioBuffer = AudioBuffer;
     gAudioEnabled = true;
     gPrimaryFrameBuffer = (uint8_t *)SCREEN;
+    // for (int i = 0; i < 256; i++) eightBitPalette[i] = i;
+
+    for (int i = 0; i < 4096; i++) {
+        // Map 12-bit Atari Lynx color to 8-bit color index
+        mapping[mColourMap[i]] = mColourMap[i];
+    }
+
+    if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 6))
+        return 0;
     while (!reboot) {
         update_input();
         lynx->UpdateFrame(true);

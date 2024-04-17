@@ -143,7 +143,7 @@ enum
    MIKIE_PIXEL_FORMAT_16BPP_565=0,
    MIKIE_PIXEL_FORMAT_16BPP_565_BE
 };
-
+extern UWORD		mColourMap[4096];
 class CMikie : public CLynxBase
 {
    public:
@@ -191,7 +191,7 @@ class CMikie : public CLynxBase
       UBYTE    mDisplayRotate_Pending;
 
       TPALETTE	mPalette[16];
-      UWORD		mColourMap[4096];
+
 
       ULONG2		mIODAT;
       ULONG2		mIODIR;
