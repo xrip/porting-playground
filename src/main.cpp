@@ -9,9 +9,8 @@
 static CSystem *lynx = NULL;
 
 size_t filesize = 0;
-#define AUDIO_SAMPLE_RATE 44100
-#define AUDIO_BUFFER_LENGTH (AUDIO_SAMPLE_RATE / 60 + 1)
-int16_t AudioBuffer[AUDIO_BUFFER_LENGTH * 2] = { 0 };
+#define AUDIO_SAMPLE_RATE HANDY_AUDIO_SAMPLE_FREQ
+int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 
@@ -519,10 +518,10 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
     for (size_t i = 0; i < 4; i++) {
-        int16_t audio_buffers[4][AUDIO_BUFFER_LENGTH*2];
+        int16_t audio_buffers[4][HANDY_AUDIO_BUFFER_LENGTH*2];
         waveHeaders[i] = (WAVEHDR) {
             .lpData = (char*)audio_buffers[i],
-            .dwBufferLength = AUDIO_BUFFER_LENGTH * 2,
+            .dwBufferLength = HANDY_AUDIO_BUFFER_LENGTH * 2,
         };
         waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
         waveHeaders[i].dwFlags |= WHDR_DONE;
@@ -543,7 +542,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
          while (currentHeader->dwFlags & WHDR_DONE) {
-             memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
+             memcpy(currentHeader->lpData, AudioBuffer, HANDY_AUDIO_BUFFER_LENGTH * 2);
              //             auto * ptr = (unsigned short *)currentHeader->lpData;
 
 //             sound_stream_update(buffer, AUDIO_BUFFER_SIZE);
