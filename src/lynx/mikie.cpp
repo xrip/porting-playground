@@ -1,3 +1,4 @@
+#pragma GCC optimize("Ofast")
 //
 // Copyright (c) 2004 K. Wilkins
 //
@@ -106,7 +107,7 @@ CMikie::CMikie(CSystem& parent, ULONG2 displayformat, ULONG2 samplerate)
    mpRamPointer=NULL;
    mDisplayFormat=displayformat;
    mAudioSampleRate=samplerate;
-   mDisplayPitch=HANDY_SCREEN_WIDTH * 2;
+   mDisplayPitch=HANDY_SCREEN_WIDTH * 1;
 
    mUART_CABLE_PRESENT=FALSE;
    mpUART_TX_CALLBACK=NULL;
@@ -840,10 +841,19 @@ void CMikie::BuildPalette()
    //
    TPALETTE Spot;
 
+   /*
    for(Spot.Index=0;Spot.Index<4096;Spot.Index++) {
       mColourMap[Spot.Index]=((Spot.Colours.Red<<12)&0xf000) | ((Spot.Colours.Red<<8)&0x0800);
       mColourMap[Spot.Index]|=((Spot.Colours.Green<<7)&0x0780) | ((Spot.Colours.Green<<3)&0x0060);
       mColourMap[Spot.Index]|=((Spot.Colours.Blue<<1)&0x001e) | ((Spot.Colours.Blue>>3)&0x0001);
+   }
+   */
+
+   for(Spot.Index=0;Spot.Index<4096;Spot.Index++)
+   {
+      mColourMap[Spot.Index]=(Spot.Colours.Red<<4)&0xe0;
+      mColourMap[Spot.Index]|=(Spot.Colours.Green<<1)&0x1c;
+      mColourMap[Spot.Index]|=(Spot.Colours.Blue>>2)&0x03;
    }
 
    if (mDisplayFormat == MIKIE_PIXEL_FORMAT_16BPP_565_BE) {
@@ -887,7 +897,7 @@ inline void CMikie::ResetDisplayPtr()
 
 inline ULONG2 CMikie::DisplayRenderLine(void)
 {
-   UWORD *bitmap_tmp=NULL;
+   UBYTE *bitmap_tmp=NULL;
    ULONG2 source,loop;
    ULONG2 work_done=0;
 
@@ -943,7 +953,7 @@ inline ULONG2 CMikie::DisplayRenderLine(void)
       // (Step through bitmap, line at a time)
 
       // Assign the temporary pointer;
-      bitmap_tmp=(UWORD*)mpDisplayCurrent;
+      bitmap_tmp=(UBYTE*)mpDisplayCurrent;
 
 		switch(mDisplayRotate)
 		{
@@ -962,15 +972,15 @@ inline ULONG2 CMikie::DisplayRenderLine(void)
                else
                {
                   mLynxAddr++;
-                  if (bitmap_tmp >= (UWORD*)(gPrimaryFrameBuffer))
+                  if (bitmap_tmp >= (UBYTE*)(gPrimaryFrameBuffer))
                   *(bitmap_tmp)=mColourMap[mPalette[source>>4].Index];
                   bitmap_tmp-=HANDY_SCREEN_WIDTH;
-                  if (bitmap_tmp >= (UWORD*)(gPrimaryFrameBuffer))
+                  if (bitmap_tmp >= (UBYTE*)(gPrimaryFrameBuffer))
                   *(bitmap_tmp)=mColourMap[mPalette[source&0x0f].Index];
                   bitmap_tmp-=HANDY_SCREEN_WIDTH;
                }
             }
-            mpDisplayCurrent+=sizeof(UWORD);
+            mpDisplayCurrent+=sizeof(UBYTE);
 				break;
 			case MIKIE_ROTATE_R:
             for(loop=0;loop<HANDY_SCREEN_WIDTH/2;loop++)
@@ -993,7 +1003,7 @@ inline ULONG2 CMikie::DisplayRenderLine(void)
                   bitmap_tmp+=HANDY_SCREEN_WIDTH;
                }
             }
-            mpDisplayCurrent-=sizeof(UWORD);
+            mpDisplayCurrent-=sizeof(UBYTE);
 				break;
 			default:
             for(loop=0;loop<HANDY_SCREEN_WIDTH/2;loop++)
@@ -1002,14 +1012,15 @@ inline ULONG2 CMikie::DisplayRenderLine(void)
                if(mDISPCTL_Flip)
                {
                   mLynxAddr--;
-                  *(bitmap_tmp++)=mColourMap[mPalette[source&0x0f].Index];
-                  *(bitmap_tmp++)=mColourMap[mPalette[source>>4].Index];
+                  *(bitmap_tmp++)=mColourMap[mPalette[source&0x0f].Index] & 0xff;
+                  *(bitmap_tmp++)=mColourMap[mPalette[source>>4].Index] & 0xff;
                }
                else
                {
                   mLynxAddr++;
-                  *(bitmap_tmp++)=mColourMap[mPalette[source>>4].Index];
-                  *(bitmap_tmp++)=mColourMap[mPalette[source&0x0f].Index];
+                  // *(bitmap_tmp++)=mapping[mPalette[source>>4].Index];
+                  *(bitmap_tmp++)=mColourMap[mPalette[source>>4].Index] & 0xff;
+                  *(bitmap_tmp++)=mColourMap[mPalette[source&0x0f].Index] & 0xff;
                }
             }
             mpDisplayCurrent+=mDisplayPitch;
@@ -3360,14 +3371,13 @@ inline void CMikie::UpdateCalcSound(void)
       //					TRACE_MIKIE1("Update() - mAUDIO_3_LINKING = %012d",mAUDIO_3_LINKING);
    }
 }
-
 inline void CMikie::UpdateSound(void)
 {
    int samples = (gSystemCycleCount-gAudioLastUpdateCycle)/HANDY_AUDIO_SAMPLE_PERIOD;
    if (samples == 0) return;
 
-   int cur_lsample = 0;
-   int cur_rsample = 0;
+   unsigned int cur_lsample = 0;
+   unsigned int cur_rsample = 0;
 
    for(int x = 0; x < 4; x++){
       /// Assumption (seems there is no documentation for the Attenuation registers)
@@ -3380,26 +3390,25 @@ inline void CMikie::UpdateSound(void)
 
       if(!(mSTEREO & (0x10 << x))) {
          if(mPAN & (0x10 << x))
-            cur_lsample += (mAUDIO_OUTPUT[x]*(mAUDIO_ATTEN[x]&0xF0))/(16*16); /// NOT /15*16 see remark above
+            cur_lsample += (mAUDIO_OUTPUT[x]*(mAUDIO_ATTEN[x]&0xF0)) / (16*16); /// NOT /15*16 see remark above
          else
             cur_lsample += mAUDIO_OUTPUT[x];
       }
       if(!(mSTEREO & (0x01 << x))) {
          if(mPAN & (0x01 << x))
-            cur_rsample += (mAUDIO_OUTPUT[x]*(mAUDIO_ATTEN[x]&0x0F))/16; /// NOT /15 see remark above
+            cur_rsample += (mAUDIO_OUTPUT[x]*(mAUDIO_ATTEN[x]&0x0F)) / 16; /// NOT /15 see remark above
          else
             cur_rsample += mAUDIO_OUTPUT[x];
       }
    }
 
-   SWORD sample_l = (cur_lsample << 5);
-   SWORD sample_r = (cur_rsample << 5);
 
    for(; samples > 0; --samples)
    {
-      gAudioBuffer[gAudioBufferPointer++] = sample_l;
-      gAudioBuffer[gAudioBufferPointer++] = sample_r;
+      gAudioBuffer[gAudioBufferPointer++] = cur_lsample << 5;
+      gAudioBuffer[gAudioBufferPointer++] = cur_rsample << 5;
       gAudioBufferPointer %= HANDY_AUDIO_BUFFER_LENGTH;
       gAudioLastUpdateCycle += HANDY_AUDIO_SAMPLE_PERIOD;
    }
+
 }

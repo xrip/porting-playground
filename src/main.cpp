@@ -15,7 +15,7 @@ int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
 
 
 uint8_t ROM[0x400000];
-uint16_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
+uint8_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
 
 #else
 #include <hardware/clocks.h>
@@ -593,11 +593,11 @@ int main(int argc, char** argv) {
         if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 8))
             return 0;
 
-    lynx = new CSystem(argv[1], MIKIE_PIXEL_FORMAT_16BPP_565, HANDY_AUDIO_SAMPLE_FREQ);
+    lynx = new CSystem(ROM, filesize, MIKIE_PIXEL_FORMAT_16BPP_565, HANDY_AUDIO_SAMPLE_FREQ);
     // Create sound thread
     HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 //    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
-    gAudioBuffer = AudioBuffer;
+    gAudioBuffer = reinterpret_cast<UWORD *>(AudioBuffer);
     gAudioEnabled = true;
     gPrimaryFrameBuffer = (uint8_t *)SCREEN;
     while (!reboot) {

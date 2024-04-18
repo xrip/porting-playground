@@ -189,9 +189,9 @@ class CMikie : public CLynxBase
       ULONG2		mTimerInterruptMask;
       UBYTE    mDisplayRotate;
       UBYTE    mDisplayRotate_Pending;
-
+   UWORD		mColourMap[4096];
       TPALETTE	mPalette[16];
-      UWORD		mColourMap[4096];
+
 
       ULONG2		mIODAT;
       ULONG2		mIODIR;

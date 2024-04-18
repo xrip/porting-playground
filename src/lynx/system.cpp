@@ -1,3 +1,4 @@
+#pragma GCC optimize("Ofast")
 //
 // Copyright (c) 2004 K. Wilkins
 //
@@ -78,7 +79,7 @@ ULONG2   gTimerCount=0;
 ULONG2   gRenderFrame=1;
 
 ULONG2   gAudioEnabled=FALSE;
-SWORD   *gAudioBuffer;//[HANDY_AUDIO_BUFFER_SIZE];
+UWORD   *gAudioBuffer;//[HANDY_AUDIO_BUFFER_SIZE];
 ULONG2   gAudioBufferPointer=0;
 ULONG2   gAudioLastUpdateCycle=0;
 UBYTE   *gPrimaryFrameBuffer=NULL;
@@ -118,7 +119,7 @@ int lss_printf(LSS_FILE *fp, const char *str)
 #endif
 
 
-CSystem::CSystem(const char* filename, long displayformat, long samplerate)
+CSystem::CSystem(UBYTE* rom, size_t rom_size, long displayformat, long samplerate)
  : mCart(NULL),
    mRam(NULL),
    mCpu(NULL),
@@ -126,12 +127,12 @@ CSystem::CSystem(const char* filename, long displayformat, long samplerate)
    mSusie(NULL),
    mEEPROM(NULL)
 {
-   UBYTE *filedata = NULL;
-   ULONG2 filesize = 0;
-   FILE *fp;
+   UBYTE * filedata = rom;
+   ULONG2 filesize = rom_size;
+   //FILE *fp;
 
-   log_printf("Loading '%s'...\n", filename);
-
+   //log_printf("Loading '%s'...\n", filename);
+/*
    if ((fp = fopen(filename, "rb"))) {
       fseek(fp, 0, SEEK_END);
       filesize = ftell(fp);
@@ -149,7 +150,7 @@ CSystem::CSystem(const char* filename, long displayformat, long samplerate)
    } else {
       log_printf("-> fopen failed!\n");
    }
-
+*/
    // Now try and determine the filetype we have opened
    if (!filedata || filesize < 16) {
       mFileType = HANDY_FILETYPE_ILLEGAL;
@@ -190,7 +191,7 @@ CSystem::CSystem(const char* filename, long displayformat, long samplerate)
    mBiosVectors[5] = 0xFF;
 
    // Regain some memory before initializing the rest
-   free(filedata);
+   // free(filedata);
 
    mRamPointer = mRam->GetRamPointer();
    mMemMapReg = 0x00;
