@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(lynx C CXX ASM)
+project(neopop C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 
 option(I2S "Enable I2S sound" OFF)
@@ -56,7 +56,7 @@ message(STATUS "")
 
 
 add_executable(${PROJECT_NAME} ${SRC})
-target_include_directories(${PROJECT_NAME} PRIVATE src)
+target_include_directories(${PROJECT_NAME} PRIVATE src src/neopop)
 
 if (PICO_PLATFORM STREQUAL "host")
 target_link_libraries(${PROJECT_NAME}

@@ -4,18 +4,19 @@
 /* Standard library includes */
 #include <cstdio>
 #include <cstdint>
-#include "lynx/handy.h"
+#include "neopop/neopop.h"
 #include <windows.h>
-static CSystem *lynx = NULL;
 
 size_t filesize = 0;
-int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
+#define  AUDIO_FREQ DAC_FREQUENCY
+#define AUDIO_BUFFER_LENGTH (AUDIO_FREQ /60 +1)
+//int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
 #if !PICO_ON_DEVICE
 #include "MiniFB.h"
 
 
 uint8_t ROM[0x400000];
-uint8_t SCREEN[HANDY_SCREEN_HEIGHT][HANDY_SCREEN_WIDTH];
+uint16_t cfb[256*256];
 
 #else
 #include <hardware/clocks.h>
@@ -486,17 +487,16 @@ static void update_input()
 {
     uint8_t buttons = 0;
 #if !PICO_ON_DEVICE
-    uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-    if (key_status[0x25]) buttons |= BUTTON_LEFT;
+    auto * key_status  = (uint8_t *)mfb_keystatus();
+/*    if (key_status[0x25]) buttons |= BUTTON_LEFT;
     if (key_status[0x27]) buttons |= BUTTON_RIGHT;
     if (key_status[0x26]) buttons |= BUTTON_UP;
     if (key_status[0x28]) buttons |= BUTTON_DOWN;
     if (key_status['Z']) buttons |= BUTTON_A;
     if (key_status['X']) buttons |= BUTTON_B;
     if (key_status[0x0d]) buttons |= BUTTON_OPT2;
-    if (key_status[0x20]) buttons |= BUTTON_OPT1;
+    if (key_status[0x20]) buttons |= BUTTON_OPT1;*/
 #endif
-    lynx->SetButtonData(buttons);
 }
 
 
@@ -506,7 +506,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     WAVEFORMATEX format = { 0 };
     format.wFormatTag = WAVE_FORMAT_PCM;
     format.nChannels = 2;
-    format.nSamplesPerSec = HANDY_AUDIO_SAMPLE_FREQ ;
+    format.nSamplesPerSec = AUDIO_FREQ ;
     format.wBitsPerSample = 16;
     format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
     format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
@@ -517,10 +517,10 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
 
     for (size_t i = 0; i < 4; i++) {
-        int16_t audio_buffers[4][HANDY_AUDIO_BUFFER_LENGTH*2];
+        int16_t audio_buffers[4][AUDIO_BUFFER_LENGTH * 2];
         waveHeaders[i] = (WAVEHDR) {
             .lpData = (char*)audio_buffers[i],
-            .dwBufferLength = HANDY_AUDIO_BUFFER_LENGTH * 2,
+            .dwBufferLength = AUDIO_BUFFER_LENGTH * 2,
         };
         waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
         waveHeaders[i].dwFlags |= WHDR_DONE;
@@ -541,7 +541,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
          while (currentHeader->dwFlags & WHDR_DONE) {
-             memcpy(currentHeader->lpData, AudioBuffer, HANDY_AUDIO_BUFFER_LENGTH * 2);
+//             memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
              //             auto * ptr = (unsigned short *)currentHeader->lpData;
 
 //             sound_stream_update(buffer, AUDIO_BUFFER_SIZE);
@@ -590,21 +590,16 @@ int main(int argc, char** argv) {
 
 //    supervision_set_ghosting(10);
 
-        if (!mfb_open("lynx", HANDY_SCREEN_WIDTH, HANDY_SCREEN_HEIGHT, 8))
+        if (!mfb_open("lynx", SCREEN_WIDTH, SCREEN_HEIGHT, 8))
             return 0;
 
-    lynx = new CSystem(ROM, filesize, MIKIE_PIXEL_FORMAT_16BPP_565, HANDY_AUDIO_SAMPLE_FREQ);
     // Create sound thread
     HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 //    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
-    gAudioBuffer = reinterpret_cast<UWORD *>(AudioBuffer);
-    gAudioEnabled = true;
-    gPrimaryFrameBuffer = (uint8_t *)SCREEN;
     while (!reboot) {
         update_input();
-        lynx->UpdateFrame(true);
 #if !PICO_ON_DEVICE
-        if (mfb_update(SCREEN, 60) == -1)
+        if (mfb_update(cfb, 60) == -1)
             reboot = true;
 #else
         sleep_ms(33);
