@@ -62,7 +62,10 @@ if (PICO_PLATFORM STREQUAL "host")
 target_link_libraries(${PROJECT_NAME}
         winmm
 )
-    target_compile_definitions(${PROJECT_NAME} PRIVATE             LSB_FIRST=1)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+            LSB_FIRST=1
+
+    )
 else()
     pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
     target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)

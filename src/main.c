@@ -2,10 +2,10 @@
 /* See LICENSE file for license details */
 
 /* Standard library includes */
-#include <cstdio>
-#include <cstdint>
 #include "neopop/neopop.h"
 #include <windows.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 size_t filesize = 0;
 #define  AUDIO_FREQ DAC_FREQUENCY
@@ -16,7 +16,7 @@ size_t filesize = 0;
 
 
 uint8_t ROM[0x400000];
-uint16_t cfb[256*256];
+extern uint16_t cfb[256*256];
 
 #else
 #include <hardware/clocks.h>
@@ -487,7 +487,7 @@ static void update_input()
 {
     uint8_t buttons = 0;
 #if !PICO_ON_DEVICE
-    auto * key_status  = (uint8_t *)mfb_keystatus();
+    uint8_t * key_status  = (uint8_t *)mfb_keystatus();
 /*    if (key_status[0x25]) buttons |= BUTTON_LEFT;
     if (key_status[0x27]) buttons |= BUTTON_RIGHT;
     if (key_status[0x26]) buttons |= BUTTON_UP;
@@ -559,8 +559,80 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
     }
     return 0;
 }
+void system_message(char *vaMessage, ...) {
+    va_list vl;
 
+    va_start(vl, vaMessage);
+    vprintf(vaMessage, vl);
+    va_end(vl);
+    printf("\n");
+}
 
+void system_sound_chipreset(void) {}
+void system_sound_silence(void) {}
+BOOL system_comms_read(_u8* buffer) { return false; }
+BOOL system_comms_poll(_u8* buffer) { return false; }
+void system_comms_write(_u8 data) {}
+
+///
+BOOL system_io_flash_read(_u8* buffer, _u32 bufferLength) {
+    return true;
+}
+///
+BOOL system_io_flash_write(_u8* buffer, _u32 bufferLength) {
+    return true;
+}
+
+void system_VBL(void) {
+    // frame drawn
+}
+
+BOOL system_io_state_read(char* filename, _u8* buffer, _u32 bufferLength) {
+    return true;
+}
+BOOL system_io_state_write(char* filename, _u8* buffer, _u32 bufferLength) {
+    return true;
+}
+uint8_t system_frameskip_key = 1;
+
+/* copied from Win32/system_language.c */
+typedef struct {
+    char label[9];
+    char string[256];
+} STRING_TAG;
+
+static STRING_TAG string_tags[]={
+        { "SDEFAULT",     "Are you sure you want to revert to the default control setup?" },
+        { "ROMFILT",      "Rom Files (*.ngp,*.ngc,*.npc,*.zip)\0*.ngp;*.ngc;*.npc;*.zip\0\0" },
+        { "STAFILT",      "State Files (*.ngs)\0*.ngs\0\0" },
+        { "FLAFILT",      "Flash Memory Files (*.ngf)\0*.ngf\0\0" },
+        { "BADFLASH",     "The flash data for this rom is from a different version of NeoPop, it will be destroyed soon." },
+        { "POWER",        "The system has been signalled to power down. You must reset or load a new rom." },
+        { "BADSTATE",     "State is from an unsupported version of NeoPop." },
+        { "ERROR1",       "An error has occured creating the application window" },
+        { "ERROR2",       "An error has occured initialising DirectDraw" },
+        { "ERROR3",       "An error has occured initialising DirectInput" },
+        { "TIMER",        "This system does not have a high resolution timer." },
+        { "WRONGROM",     "This state is from a different rom, Ignoring." },
+        { "EROMFIND",     "Cannot find ROM file" },
+        { "EROMOPEN",     "Cannot open ROM file" },
+        { "EZIPNONE",     "No roms found" } ,
+        { "EZIPBAD",      "Corrupted ZIP file" },
+        { "EZIPFIND",     "Cannot find ZIP file" },
+
+        { "ABORT",	      "Abort" },
+        { "DISCON",	      "Disconnect" },
+        { "CONNEC",	      "Connected" }
+};
+
+char *
+system_get_string(STRINGS string_id)
+{
+    if (string_id >= STRINGS_MAX)
+        return "Unknown String";
+
+    return string_tags[string_id].string;
+}
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
@@ -588,18 +660,27 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-//    supervision_set_ghosting(10);
+    system_colour = COLOURMODE_AUTO;
+    language_english = true;
+    mute = true;
 
-        if (!mfb_open("lynx", SCREEN_WIDTH, SCREEN_HEIGHT, 8))
+    bios_install();
+    rom.data = ROM;
+    rom.length = filesize;
+    rom_loaded();
+    reset();
+
+        if (!mfb_open("neopop", SCREEN_WIDTH, SCREEN_HEIGHT, 6))
             return 0;
 
     // Create sound thread
-    HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+    //HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 //    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
     while (!reboot) {
         update_input();
+        emulate();
 #if !PICO_ON_DEVICE
-        if (mfb_update(cfb, 60) == -1)
+        if (mfb_update(cfb, 0) == -1)
             reboot = true;
 #else
         sleep_ms(33);
