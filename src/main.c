@@ -3,7 +3,7 @@
 
 /* Standard library includes */
 #include "neopop/neopop.h"
-#include <windows.h>
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -12,6 +12,7 @@ size_t filesize = 0;
 #define AUDIO_BUFFER_LENGTH (AUDIO_FREQ /60 +1)
 //int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
 #if !PICO_ON_DEVICE
+#include <windows.h>
 #include "MiniFB.h"
 
 
@@ -689,7 +690,7 @@ int main(int argc, char** argv) {
 
     system_colour = COLOURMODE_AUTO;
     language_english = true;
-    mute = true;
+    mute = false;
 
     bios_install();
     rom.data = ROM;

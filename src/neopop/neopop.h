@@ -284,7 +284,7 @@ RomHeader;
 	has been displayed, the function should return. The message is not
 	necessarily a fatal error. */
 	
-	void __cdecl system_message(char* vaMessage,...);
+	void system_message(char* vaMessage,...);
 
 /*! Called at the start of the vertical blanking period, this function is
 	designed to perform many of the critical hardware interface updates
