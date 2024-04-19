@@ -205,25 +205,26 @@ static void rom_hack(void)
 
 static void rom_display_header(void)
 {
-#ifdef NEOPOP_DEBUG
-	system_debug_message("\nRom Header =========================");
-	system_debug_message("\"%s\"", rom.name);
+//#ifdef NEOPOP_DEBUG
+#if 1
+	printf("\nRom Header =========================");
+    printf("\"%s\"", rom.name);
 
 	//Colour / BW mode?
 	switch(rom_header->mode)
 	{
-	case 0x00: system_debug_message("Presented in Black & White"); break;
-	case 0x10: system_debug_message("Presented in Colour"); break;
-	default: system_debug_message("Presented in Unknown mode %x", rom_header->mode); break;
+	case 0x00: printf("Presented in Black & White"); break;
+	case 0x10: printf("Presented in Colour"); break;
+	default: printf("Presented in Unknown mode %x", rom_header->mode); break;
 	}
 
 	//Catalog Numbers
-	system_debug_message("Catalogue %d (sub %d)", rom_header->catalog, rom_header->subCatalog);
+    printf("Catalogue %d (sub %d)", rom_header->catalog, rom_header->subCatalog);
 
 	//Starting PC
-	system_debug_message("Starting PC = %06X", rom_header->startPC & 0xFFFFFF);
+    printf("Starting PC = %06X", rom_header->startPC & 0xFFFFFF);
 
-	system_debug_message("====================================\n");
+    printf("====================================\n");
 #endif
 }
 

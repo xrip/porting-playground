@@ -670,7 +670,7 @@ int main(int argc, char** argv) {
     rom_loaded();
     reset();
 
-        if (!mfb_open("neopop", SCREEN_WIDTH, SCREEN_HEIGHT, 6))
+        if (!mfb_open("neopop", SCREEN_WIDTH, SCREEN_HEIGHT, 3))
             return 0;
 
     // Create sound thread
