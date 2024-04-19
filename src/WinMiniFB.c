@@ -138,7 +138,7 @@ int mfb_update(void* buffer, int fps_limit) {
     if (s_close == 1)
         return -1;
 
-    if (fps_limit) {
+    if (fps_limit > 0) {
         const DWORD targetFrameTime = 1000 / fps_limit;
         const DWORD elapsedFrameTime = GetTickCount() - previousFrameTime;
 

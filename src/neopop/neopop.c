@@ -89,10 +89,10 @@ void __cdecl instruction_error(char* vaMessage,...)
 
 void emulate(void)
 {
-	_u8 i;
+	_u16 i;
 	
 	//Execute several instructions to boost performance
-	for (i = 0; i < 64; i++)
+//	for (i = 0; i < 640; i++)
 	{
 		updateTimers(TLCS900h_interpret());
 		if (Z80ACTIVE) Z80EMULATE

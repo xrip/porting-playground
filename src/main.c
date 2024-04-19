@@ -483,12 +483,14 @@ void filebrowser(const char pathname[256], const char executables[11]) {
 #endif
 
 
+#define JOYPORT_ADDR	0x6F82
+
 static void update_input()
 {
     uint8_t buttons = 0;
 #if !PICO_ON_DEVICE
-    uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-/*    if (key_status[0x25]) buttons |= BUTTON_LEFT;
+
+    /*    if (key_status[0x25]) buttons |= BUTTON_LEFT;
     if (key_status[0x27]) buttons |= BUTTON_RIGHT;
     if (key_status[0x26]) buttons |= BUTTON_UP;
     if (key_status[0x28]) buttons |= BUTTON_DOWN;
@@ -496,7 +498,26 @@ static void update_input()
     if (key_status['X']) buttons |= BUTTON_B;
     if (key_status[0x0d]) buttons |= BUTTON_OPT2;
     if (key_status[0x20]) buttons |= BUTTON_OPT1;*/
+    static const int joy_mask[] = {
+            0x01, /* up */
+            0x02, /* down */
+            0x04, /* left */
+            0x08, /* right */
+            0x10, /* button a */
+            0x20, /* button b */
+            0x40  /* option */
+    };
+    uint8_t * key_status  = (uint8_t *)mfb_keystatus();
+    if (key_status[0x25]) buttons |= 0x04;
+    if (key_status[0x27]) buttons |= 0x08;
+    if (key_status[0x26]) buttons |= 0x01;
+    if (key_status[0x28]) buttons |= 0x02;
+    if (key_status['Z']) buttons |= 0x10;
+    if (key_status['X']) buttons |= 0x20;
+    //if (key_status[0x0d]) buttons |= 0x40;
+    if (key_status[0x20]) buttons |= 0x40;
 #endif
+    ram[JOYPORT_ADDR] = buttons;
 }
 
 
@@ -576,24 +597,29 @@ void system_comms_write(_u8 data) {}
 
 ///
 BOOL system_io_flash_read(_u8* buffer, _u32 bufferLength) {
-    return true;
+    return false;
 }
 ///
 BOOL system_io_flash_write(_u8* buffer, _u32 bufferLength) {
-    return true;
+    return false;
 }
 
 void system_VBL(void) {
+
     // frame drawn
+    update_input();
+
+    if (mfb_update(cfb, 60) == -1)
+        exit(0);
 }
 
 BOOL system_io_state_read(char* filename, _u8* buffer, _u32 bufferLength) {
-    return true;
+    return false;
 }
 BOOL system_io_state_write(char* filename, _u8* buffer, _u32 bufferLength) {
-    return true;
+    return false;
 }
-uint8_t system_frameskip_key = 1;
+uint8_t system_frameskip_key;
 
 /* copied from Win32/system_language.c */
 typedef struct {
@@ -633,6 +659,7 @@ system_get_string(STRINGS string_id)
 
     return string_tags[string_id].string;
 }
+
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
@@ -668,27 +695,16 @@ int main(int argc, char** argv) {
     rom.data = ROM;
     rom.length = filesize;
     rom_loaded();
+    system_frameskip_key = 1;
+//    sound_init(44100);
     reset();
 
-        if (!mfb_open("neopop", SCREEN_WIDTH, SCREEN_HEIGHT, 3))
+        if (!mfb_open("neopop", SCREEN_WIDTH, SCREEN_HEIGHT, 5))
             return 0;
-
     // Create sound thread
     //HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 //    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
-    while (!reboot) {
-        update_input();
+    for (;;) {
         emulate();
-#if !PICO_ON_DEVICE
-        if (mfb_update(cfb, 0) == -1)
-            reboot = true;
-#else
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-        #endif
-
     }
-    reboot = false;
 }
