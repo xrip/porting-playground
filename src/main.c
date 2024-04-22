@@ -32,7 +32,7 @@ extern uint16_t cfb[256*256];
 #include "ff.h"
 
 #define HOME_DIR "\\PCE"
-extern char __flash_binary_end;
+    extern char __flash_binary_end;
 // #define FLASH_TARGET_OFFSET (((((uintptr_t)&__flash_binary_end - XIP_BASE) / FLASH_SECTOR_SIZE) + 1) * FLASH_SECTOR_SIZE)
 // uintptr_t ROM = XIP_BASE + FLASH_TARGET_OFFSET;
 #define FLASH_TARGET_OFFSET (1024 * 1024)
@@ -690,7 +690,7 @@ int main(int argc, char** argv) {
 
     system_colour = COLOURMODE_AUTO;
     language_english = true;
-    mute = false;
+    mute = true;
 
     bios_install();
     rom.data = ROM;

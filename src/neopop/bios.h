@@ -39,7 +39,7 @@
 #define __BIOS__
 //=============================================================================
 
-extern _u8 bios[0x10000];
+extern const _u8 bios[0x10000];
 
 void iBIOSHLE(void);
 

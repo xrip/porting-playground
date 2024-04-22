@@ -142,8 +142,9 @@ void* translate_address_read(_u32 address)
 	if (address == 0x8008)
 		ram[0x8008] = (_u8)((abs(TIMER_HINT_RATE - (int)timer_hint)) >> 2);
 
-	if (address <= RAM_END)
-		return ram + address;
+	if (address <= RAM_END) {
+        return ram + address;
+    }
 
 	// ===================================
 
@@ -330,20 +331,35 @@ _u8 loadB(_u32 address)
 
 _u16 loadW(_u32 address)
 {
-	_u16* ptr = translate_address_read(address);
+	_u8* ptr = translate_address_read(address);
+
 	if (ptr == NULL)
 		return 0;
-	else
-		return *ptr;
+	else {
+        register _u16 b1 = *ptr++;
+        register _u16 b0 = *ptr;
+        _u16 result  = b1 | (b0 << 8);
+//        printf("pc: 0x%x loadW 0x%x : 0x%x\r\n", pc, address, result);
+        return result;
+//        return *ptr;
+    }
 }
 
 _u32 loadL(_u32 address)
 {
-	_u32* ptr = translate_address_read(address);
+
+	_u8* ptr = translate_address_read(address);
 	if (ptr == NULL)
 		return 0;
-	else
-		return *ptr;
+	else {
+        register _u32 b3 = *ptr++;
+        register _u32 b2 = *ptr++;
+        register _u32 b1 = *ptr++;
+        register _u32 b0 = *ptr;
+        register _u32 result = (b0 << 24 | b1 << 16 | b2 << 8 | b3);
+//        printf("pc: 0x%x loadL 0x%x : 0x%x\r\n", pc, address, result);
+        return result;
+    }
 }
 
 //=============================================================================
@@ -362,24 +378,28 @@ void storeB(_u32 address, _u8 data)
 
 void storeW(_u32 address, _u16 data)
 {
-	_u16* ptr = translate_address_write(address);
+	_u8* ptr = translate_address_write(address);
 
 	//Write
 	if (ptr)
 	{
-		*ptr = data;
+//        printf("pc: 0x%x storeW 0x%x : 0x%x\r\n", pc, address, data);
+		*ptr++ = (_u8) data;
+		*ptr = (_u8)(data >> 8);
 		post_write(address);
 	}
 }
 
 void storeL(_u32 address, _u32 data)
 {
-	_u32* ptr = translate_address_write(address);
+	_u8* ptr = translate_address_write(address);
 
 	//Write
 	if (ptr)
 	{
-		*ptr = data;
+//        printf("pc: 0x%x storeL 0x%x : 0x%x\r\n", pc, address, data);
+		storeW(address, data & 0xFFFF);
+		storeW(address+2, data >> 16);
 		post_write(address);
 	}
 }

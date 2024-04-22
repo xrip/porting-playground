@@ -88,7 +88,7 @@ SoundChip toneChip;
 SoundChip noiseChip;
 
 //==== DAC
-#define DAC_BUFFERSIZE		256 * 1024
+#define DAC_BUFFERSIZE		1 * 1024
 
 int dacBufferRead, dacBufferWrite, dacBufferCount;
 _u8 dacBufferL[DAC_BUFFERSIZE];
