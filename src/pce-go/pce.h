@@ -94,7 +94,7 @@ typedef enum {
 typedef union {
 	struct {
 		uint8_t l, h;
-	} B;
+	} B __attribute__((aligned(2)));
 	uint16_t W;
 } UWord;
 
