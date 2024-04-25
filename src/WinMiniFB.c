@@ -80,7 +80,7 @@ int mfb_open(const char* title, int width, int height, int scale) {
     rect.right = 256 * scale;
     rect.bottom = 240 * scale;
 
-    AdjustWindowRect(&rect, WS_POPUP | WS_SYSMENU | WS_CAPTION, 0);
+    AdjustWindowRect(&rect, WS_POPUP | WS_SYSMENU | WS_CAPTION , 0);
 
     rect.right -= rect.left;
     rect.bottom -= rect.top;
@@ -151,6 +151,11 @@ int mfb_open(const char* title, int width, int height, int scale) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+int mfb_resize(int width, int height) {
+    s_width = width;
+    s_height = height;
+    SetWindowPos(s_wnd,0,0,0,s_width * s_scale,s_height * s_scale,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+}
 int mfb_update(void* buffer, int fps_limit) {
     static DWORD previousFrameTime = 0;
     MSG msg;

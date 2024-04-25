@@ -11,6 +11,8 @@ extern "C" {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+int mfb_resize(int width, int height);
+
 // Create a window that is used to display the buffer sent into the mfb_update function, returns 0 if fails
 int mfb_open(const char* name, int width, int height, int scale);
 

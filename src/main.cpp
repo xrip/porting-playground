@@ -630,8 +630,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
-    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 3))
-        return 0;
+
 #else
     overclock();
 
@@ -654,7 +653,8 @@ int main(int argc, char** argv) {
     filebrowser(HOME_DIR, "pce");
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
-
+    if (!mfb_open("pce", XBUF_WIDTH, XBUF_HEIGHT, 3))
+        return 0;
     if (!InitPCE(AUDIO_SAMPLE_RATE, true, ROM, filesize)) {
 
 #if PICO_ON_DEVICE
@@ -664,10 +664,17 @@ int main(int argc, char** argv) {
     // Create sound thread
     HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
 
+    bool init = false;
+    int w = 256, h = 240;
     while (!reboot) {
 
             osd_input_read(PCE.Joypad.regs);
             pce_run();
+            if (w != PCE.VDC.screen_width || h != PCE.VDC.screen_height) {
+                w = PCE.VDC.screen_width;
+                h = PCE.VDC.screen_height;
+                mfb_resize(w, h);
+            }
             //osd_vsync();
         // for(int x = 0; x <32; x++) graphics_set_palette(x, RGB888(bitmap.pal.color[x][0], bitmap.pal.color[x][1], bitmap.pal.color[x][2]));
 #if !PICO_ON_DEVICE
