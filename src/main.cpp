@@ -569,6 +569,10 @@ void osd_input_read(uint8_t joypads[8])
     if (key_status[0x28])   buttons |= JOY_DOWN;
     if (key_status['Z'])      buttons |= JOY_A;
     if (key_status['X'])      buttons |= JOY_B;
+
+    if (key_status['S']) SaveState("save");
+    if (key_status['L']) LoadState("save");
+
     if (key_status[0x0d])  buttons |= JOY_RUN;
     if (key_status[0x20]) buttons |= JOY_SELECT;
 #endif
@@ -667,7 +671,6 @@ int main(int argc, char** argv) {
     bool init = false;
     int w = 256, h = 240;
     while (!reboot) {
-
             osd_input_read(PCE.Joypad.regs);
             pce_run();
             if (w != PCE.VDC.screen_width || h != PCE.VDC.screen_height) {
