@@ -8,9 +8,10 @@
 #include <stdbool.h>
 
 size_t filesize = 0;
-#define  AUDIO_FREQ DAC_FREQUENCY
+#define  AUDIO_FREQ 44100
 #define AUDIO_BUFFER_LENGTH (AUDIO_FREQ /60 +1)
-//int16_t AudioBuffer[HANDY_AUDIO_BUFFER_LENGTH] = { 0 };
+uint16_t AudioBuffer[AUDIO_BUFFER_LENGTH] = { 0 };
+uint8_t AudioBuffer2[AUDIO_BUFFER_LENGTH] = { 0 };
 #if !PICO_ON_DEVICE
 #include <windows.h>
 #include "MiniFB.h"
@@ -520,7 +521,11 @@ static void update_input()
 #endif
     ram[JOYPORT_ADDR] = buttons;
 }
+#define CHIPBUFFERLENGTH	35280
 
+#define DACBUFFERLENGTH		3200
+
+#define UNDEFINED		0xFFFFFF
 
 DWORD WINAPI SoundThread(LPVOID lpParam) {
     WAVEHDR waveHeaders[4];
@@ -563,7 +568,74 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
         // Wait until audio finishes playing
          while (currentHeader->dwFlags & WHDR_DONE) {
-//             memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
+             sound_update(AudioBuffer, AUDIO_BUFFER_LENGTH*2);
+             //memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
+//             dac_update(AudioBuffer2, AUDIO_BUFFER_LENGTH * 2);
+             memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
+
+             //             auto * ptr = (unsigned short *)currentHeader->lpData;
+
+//             sound_stream_update(buffer, AUDIO_BUFFER_SIZE);
+             //psg_update((int16_t *)currentHeader->lpData, AUDIO_BUFFER_LENGTH , 0xff);
+             /* Convert from U8 (0 - 45) to S16 */
+//             for (unsigned char i : AudioBuffer)
+//                 *ptr++ = i  << (8 + 1);
+
+
+             waveOutWrite(hWaveOut, currentHeader, sizeof(WAVEHDR));
+
+             currentHeader++;
+             if (currentHeader == waveHeaders + 4) { currentHeader = waveHeaders; }
+         }
+    }
+    return 0;
+}
+DWORD WINAPI DacThread(LPVOID lpParam) {
+    WAVEHDR waveHeaders[4];
+
+    WAVEFORMATEX format = { 0 };
+    format.wFormatTag = WAVE_FORMAT_PCM;
+    format.nChannels = 1;
+    format.nSamplesPerSec = DAC_FREQUENCY ;
+    format.wBitsPerSample = 8;
+    format.nBlockAlign = format.nChannels * format.wBitsPerSample / 8;
+    format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+
+    HANDLE waveEvent = CreateEvent(NULL, 1,0, NULL);
+
+    HWAVEOUT hWaveOut;
+    waveOutOpen(&hWaveOut, WAVE_MAPPER, &format, (DWORD_PTR)waveEvent , 0, CALLBACK_EVENT);
+
+    for (size_t i = 0; i < 4; i++) {
+        int16_t audio_buffers[4][AUDIO_BUFFER_LENGTH * 2];
+        waveHeaders[i] = (WAVEHDR) {
+            .lpData = (char*)audio_buffers[i],
+            .dwBufferLength = DACBUFFERLENGTH * 2,
+        };
+        waveOutPrepareHeader(hWaveOut, &waveHeaders[i], sizeof(WAVEHDR));
+        waveHeaders[i].dwFlags |= WHDR_DONE;
+    }
+    WAVEHDR* currentHeader = waveHeaders;
+
+
+    while (true) {
+        if (WaitForSingleObject(waveEvent, INFINITE)) {
+            fprintf(stderr, "Failed to wait for event.\n");
+            return 1;
+        }
+
+        if (!ResetEvent(waveEvent)) {
+            fprintf(stderr, "Failed to reset event.\n");
+            return 1;
+        }
+
+        // Wait until audio finishes playing
+         while (currentHeader->dwFlags & WHDR_DONE) {
+//             sound_update(AudioBuffer, AUDIO_BUFFER_LENGTH*2);
+             //memcpy(currentHeader->lpData, AudioBuffer, AUDIO_BUFFER_LENGTH * 2);
+             dac_update(AudioBuffer2, AUDIO_BUFFER_LENGTH );
+             memcpy(currentHeader->lpData, AudioBuffer2, AUDIO_BUFFER_LENGTH );
+
              //             auto * ptr = (unsigned short *)currentHeader->lpData;
 
 //             sound_stream_update(buffer, AUDIO_BUFFER_SIZE);
@@ -661,6 +733,7 @@ system_get_string(STRINGS string_id)
     return string_tags[string_id].string;
 }
 
+
 int main(int argc, char** argv) {
 #if !PICO_ON_DEVICE
     readfile(argv[1], ROM);
@@ -697,15 +770,17 @@ int main(int argc, char** argv) {
     rom.length = filesize;
     rom_loaded();
     system_frameskip_key = 1;
-//    sound_init(44100);
+    sound_init(44100);
     reset();
 
         if (!mfb_open("neopop", SCREEN_WIDTH, SCREEN_HEIGHT, 5))
             return 0;
     // Create sound thread
-    //HANDLE hThread = CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+    CreateThread(NULL, 0, SoundThread, NULL, 0, NULL);
+//    CreateThread(NULL, 0, DacThread, NULL, 0, NULL);
 //    lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
     for (;;) {
         emulate();
+
     }
 }
