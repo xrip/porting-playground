@@ -19,7 +19,7 @@ uint32_t oldpc[8];
 
 int lorom = 1;
 
-unsigned char *ram;
+unsigned char ram[128 << 10];
 unsigned char rom[32768 * 128];
 unsigned char opcode;
 int cycles;
@@ -4677,7 +4677,7 @@ void makeopcodetable() {
     opcodes[0xFD][2] = opcodes[0xFD][3] = opcodes[0xFD][4] = opFDm;
     opcodes[0xFE][2] = opcodes[0xFE][3] = opcodes[0xFE][4] = opFEm;
     opcodes[0xFF][2] = opcodes[0xFF][3] = opcodes[0xFF][4] = opFFm;
-    ram = (unsigned char *) malloc(0x20000);
+//    ram = (unsigned char *) malloc(0x20000);
     memset(ram, 0, 131072);
 //        atexit(dumpram);
 }

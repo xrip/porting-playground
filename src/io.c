@@ -4,7 +4,7 @@
 int slines;
 int hblnk = 0;
 int reg4016;
-unsigned char *ram;
+unsigned char ppu_vram[64 << 10];
 int fastrom;
 int irqon;
 int padready = 1;

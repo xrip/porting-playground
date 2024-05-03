@@ -6,7 +6,7 @@ int sblankchk = 0;
 {*/
 unsigned char ppu_vidportc, ppu_sdr;
 unsigned char ppu_main, ppu_sub;
-unsigned char *ppu_vram;
+unsigned char ppu_vram[64 << 10];
 unsigned short *ppu_vramw;
 unsigned short ppu_vaddr;
 unsigned short ppu_bg[4], ppu_chr[4];
@@ -93,7 +93,7 @@ void updatetiles() {
 
 int sblankchk;
 int spcemu, palf, soundupdate;
-unsigned char *ram;
+unsigned char ram[128 << 10];
 int lastsetzf = 1;
 int ymode[4], xsize[4], bgdat[4];
 uint32_t matrixr;
@@ -130,7 +130,7 @@ int m7write;
 #endif
 
 void initppu() {
-    ppu_vram = (unsigned char *) malloc(65536);
+//    ppu_vram = (unsigned char *) malloc(65536);
     ppu_vramw = (unsigned short *) ppu_vram;
     memset(ppu_vram, 0, 65536);
     memset(objram, 0, 1024);
@@ -547,7 +547,7 @@ void writeppu(unsigned short addr, unsigned char val) {
             exit(-1);*/
 }
 
-unsigned char *ram;
+unsigned char ram[128 << 10];
 
 int skip = 0;
 
