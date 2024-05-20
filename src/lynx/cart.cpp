@@ -61,7 +61,7 @@ CCart::CCart(UBYTE *gamedata, ULONG2 gamesize)
    mCRC32=0;
    mBank=bank0;
 
-   mFileHeader = (LYNX_HEADER){
+   mFileHeader = {
       .magic = {0, 0, 0, 0},
       .page_size_bank0 = UWORD(gamesize >> 8),
       .page_size_bank1 = 0,
