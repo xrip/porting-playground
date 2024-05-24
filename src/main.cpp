@@ -524,7 +524,7 @@ DWORD WINAPI SoundThread(LPVOID lpParam) {
 
     for (size_t i = 0; i < 4; i++) {
         int16_t audio_buffers[4][AUDIO_BUFFER_SIZE*2];
-        waveHeaders[i] = (WAVEHDR) {
+        waveHeaders[i] = {
             .lpData = (char*)audio_buffers[i],
             .dwBufferLength = AUDIO_BUFFER_SIZE * 2,
         };
@@ -598,15 +598,14 @@ int main(int argc, char** argv) {
     graphics_set_mode(GRAPHICSMODE_DEFAULT);
 #endif
 
-//    supervision_set_ghosting(10);
+//    supervision_set_ghosting(8);
 
     supervision_init();
 
     if (supervision_load(ROM, filesize) ) {
-//        supervision_set_ghosting(2);
         supervision_set_color_scheme(SV_COLOR_SCHEME_WATAROO);
         supervision_set_map_func(map_rgb565);
-        if (!mfb_open("watara", SV_W, SV_H, 3))
+        if (!mfb_open("watara", SV_W, SV_H, 5))
             return 0;
 
     }
