@@ -493,14 +493,15 @@ static void update_input()
     uint8 controls_state = 0;
 #if !PICO_ON_DEVICE
     uint8_t * key_status  = (uint8_t *)mfb_keystatus();
-    if (key_status[0x25])  controls_state |= 0x02;
-    if (key_status[0x27])  controls_state |= 0x01;
-    if (key_status[0x26])  controls_state |= 0x08;
-    if (key_status[0x28])  controls_state |= 0x04;
-    if (key_status['Z'])   controls_state |= 0x20;
-    if (key_status['X'])   controls_state |= 0x10;
-    if (key_status[0x0d])  controls_state |= 0x80;
+    if (key_status[0x27] || key_status['D'])  controls_state |= 0x01;
+    if (key_status[0x25] || key_status['A'])  controls_state |= 0x02;
+    if (key_status[0x28] || key_status['S'])  controls_state |= 0x04;
+    if (key_status[0x26] || key_status['W'])  controls_state |= 0x08;
+    if (key_status['X']  || key_status['O'])   controls_state |= 0x10;
+    if (key_status['Z']  || key_status['P'])   controls_state |= 0x20;
     if (key_status[0x20])  controls_state |= 0x40;
+    if (key_status[0x0d])  controls_state |= 0x80;
+
 #endif
     supervision_set_input(controls_state);
 }
@@ -605,7 +606,7 @@ int main(int argc, char** argv) {
     if (supervision_load(ROM, filesize) ) {
         supervision_set_color_scheme(SV_COLOR_SCHEME_WATAROO);
         supervision_set_map_func(map_rgb565);
-        if (!mfb_open("watara", SV_W, SV_H, 5))
+        if (!mfb_open("Watara Supervision", SV_W, SV_H, 5))
             return 0;
 
     }
